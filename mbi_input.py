@@ -183,9 +183,10 @@ def distorted_inputs(data_dir, batch_size):
   distorted_image = tf.image.random_contrast(distorted_image,
                                              lower=0.2, upper=1.8)
   
-  fft_image = to_FFT(distorted_image)
+  #fft_image = to_FFT(distorted_image)
+  hsv_image = tf.image.rgb_to_hsv(distorted_image)
   # Subtract off the mean and divide by the variance of the pixels.
-  float_image = tf.image.per_image_standardization(fft_image)
+  float_image = tf.image.per_image_standardization(hsv_image)
   
 
   #tf.summary.image('distorted images', float_images)
@@ -242,10 +243,12 @@ def inputs(eval_data, data_dir, batch_size):
   resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
                                                          width, height)
   # Transform the image to desired form.
-  fft_image = to_FFT(resized_image)
+  #fft_image = to_FFT(resized_image)
+  hsv_image = tf.image.rgb_to_hsv(resized_image)
+  #dct_image = cv2.dct(resized_image)
 
   # Subtract off the mean and divide by the variance of the pixels.
-  float_image = tf.image.per_image_standardization(fft_image)
+  float_image = tf.image.per_image_standardization(hsv_image)
 
   # Ensure that the random shuffling has good mixing properties.
   min_fraction_of_examples_in_queue = 0.4
@@ -260,7 +263,9 @@ def inputs(eval_data, data_dir, batch_size):
 def to_FFT(image):
   """Convert to FFT of RGB channels
   """
+  fftim = np.zeros(image.get_size())
   comp_image = tf.cast(image, tf.complex64)
-  freqim = tf.fft3d(comp_image)
-  fftim = tf.complex_abs(freqim)
+  for n in [0,1,2]
+      freqim = tf.fft2d(comp_image)
+      fftim[:,:,n] = 20*tf.log(tf.complex_abs(freqim)+0.0001)
   return fftim
