@@ -48,22 +48,33 @@ import mbi
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('train_dir', '/home/charlie/mbi_experiment/hsv_train',
+tf.app.flags.DEFINE_string('rgb_dir', '/home/charlie/mbi_experiment/rgb_train',
                            """Directory where to write event logs """
                            """and checkpoint.""")
-tf.app.flags.DEFINE_integer('max_steps', 100000,
+tf.app.flags.DEFINE_string('fft_dir', '/home/charlie/mbi_experiment/fft_train',
+                           """Directory where to write event logs """
+                           """and checkpoint.""")
+tf.app.flags.DEFINE_string('hsv_dir', '/home/charlie/mbi_experiment/hsv_train',
+                           """Directory where to write event logs """
+                           """and checkpoint.""")
+tf.app.flags.DEFINE_integer('max_steps', 150000,
                             """Number of batches to run.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
 
 
-def train():
+def train(train_dir, basis):
   """Train CIFAR-10 for a number of steps."""
+
+  if tf.gfile.Exists(train_dir):
+    tf.gfile.DeleteRecursively(train_dir)
+  tf.gfile.MakeDirs(train_dir)
+
   with tf.Graph().as_default():
     global_step = tf.Variable(0, trainable=False)
 
     # Get images and labels for CIFAR-10.
-    images, labels = mbi.distorted_inputs()
+    images, labels = mbi.distorted_inputs(basis)
 
     # Build a Graph that computes the logits predictions from the
     # inference model.
@@ -93,7 +104,7 @@ def train():
     # Start the queue runners.
     tf.train.start_queue_runners(sess=sess)
 
-    summary_writer = tf.summary.FileWriter(FLAGS.train_dir, sess.graph)
+    summary_writer = tf.summary.FileWriter(train_dir, sess.graph)
 
     for step in xrange(FLAGS.max_steps):
       start_time = time.time()
@@ -118,16 +129,15 @@ def train():
 
       # Save the model checkpoint periodically.
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
-        checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+        checkpoint_path = os.path.join(train_dir, 'model.ckpt')
         saver.save(sess, checkpoint_path, global_step=step)
 
 
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
-  if tf.gfile.Exists(FLAGS.train_dir):
-    tf.gfile.DeleteRecursively(FLAGS.train_dir)
-  tf.gfile.MakeDirs(FLAGS.train_dir)
-  train()
+  train(FLAGS.rgb_dir,0)
+  train(FLAGS.fft_dir,3)
+  train(FLAGS.hsv_dir,2)
 
 
 if __name__ == '__main__':

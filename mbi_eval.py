@@ -46,11 +46,19 @@ import mbi
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('eval_dir', '/home/charlie/mbi_experiment/hsv_eval',
+tf.app.flags.DEFINE_string('rgb_eval_dir', '/home/charlie/mbi_experiment/rgb_eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('fft_eval_dir', '/home/charlie/mbi_experiment/fft_eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('hsv_eval_dir', '/home/charlie/mbi_experiment/hsv_eval',
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('eval_data', 'test',
                            """Either 'test' or 'train_eval'.""")
-tf.app.flags.DEFINE_string('checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
+tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('ffg_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('hsv_checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 5,
                             """How often to run the eval.""")
@@ -60,7 +68,7 @@ tf.app.flags.DEFINE_boolean('run_once', False,
                          """Whether to run eval only once.""")
 
 
-def eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat, labels):
+def eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat, logits, labels, basis):
   """Run Eval once.
 
   Args:
@@ -94,11 +102,23 @@ def eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat, labels):
       true_count = 0  # Counts the number of correct predictions.
       total_sample_count = num_iter * FLAGS.batch_size
       step = 0
-      confusion = np.zeros(np.shape(sess.run([conf_mat])))
       while step < num_iter and not coord.should_stop():
-        predictions = sess.run([top_k_op])
-        confusion += sess.run([conf_mat])
-        true_count += np.sum(predictions)
+        if step == 0:
+            logit_stream = sess.run([logits])
+            label_stream = sess.run([labels])
+
+            predictions = sess.run([top_k_op])
+
+            confusion = sess.run([conf_mat])
+            true_count += np.sum(predictions)
+        else:
+            logit_stream = np.concatenate(logit_stream, sess.run([logits]))
+            label_stream = np.concatenate(label_stream, sess.run([labels]))
+
+            predictions = sess.run([top_k_op])
+
+            confusion += sess.run([conf_mat])
+            true_count += np.sum(predictions)
         step += 1
 
       # Compute precision @ 1.
@@ -115,20 +135,23 @@ def eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat, labels):
 
     coord.request_stop()
     coord.join(threads, stop_grace_period_secs=10)
+    return logit_stream, label_stream
 
 
-def evaluate():
+def evaluate(basis):
   """Eval CIFAR-10 for a number of steps."""
   with tf.Graph().as_default() as g:
     # Get images and labels for CIFAR-10.
     eval_data = FLAGS.eval_data == 'test'
-    images, labels = mbi.inputs(eval_data=eval_data)
+
+    images, labels = mbi.inputs(eval_data=eval_data, basis=basis)
 
     # Build a Graph that computes the logits predictions from the
     # inference model.
     logits = mbi.inference(images)
-    guess  = tf.argmax(logits,1)
-    conf_mat = tf.contrib.metrics.confusion_matrix(labels, guess)
+    
+    # Build Confusion Matrix
+    conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
 
     # Calculate predictions.
     top_k_op = tf.nn.in_top_k(logits, labels, 1)
@@ -145,7 +168,7 @@ def evaluate():
     summary_writer = tf.summary.FileWriter(FLAGS.eval_dir, g)
 
     while True:
-      eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat, labels)
+      eval_once(saver, summary_writer, top_k_op, summary_op, conf_mat,logits, labels, basis)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)
@@ -156,7 +179,17 @@ def main(argv=None):  # pylint: disable=unused-argument
   if tf.gfile.Exists(FLAGS.eval_dir):
     tf.gfile.DeleteRecursively(FLAGS.eval_dir)
   tf.gfile.MakeDirs(FLAGS.eval_dir)
-  evaluate()
+
+  rgb_logits, rgb_labels = evaluate(0)
+  fft_logits, fft_labels = evaluate(3)
+  hsv_logits, hsv_labels = evaluate(2)
+  assert np.logical_and(np.equal(rgb_labels, fft_labels)), 'Label Mismatch'
+
+  late_fuse = np.argmax(rgb_logits+fft_logits+hsv_logits)
+  prediction_performance = np.equal(late_fuse, rgb_labels)
+
+
+
 
 
 if __name__ == '__main__':

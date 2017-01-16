@@ -139,7 +139,7 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
   return var
 
 
-def distorted_inputs():
+def distorted_inputs(basis):
   """Construct distorted input for CIFAR training using the Reader ops.
 
   Returns:
@@ -153,14 +153,14 @@ def distorted_inputs():
     raise ValueError('Please supply a data_dir')
   data_dir = os.path.join(FLAGS.data_dir, 'cifar-10-batches-bin')
   images, labels = mbi_input.distorted_inputs(data_dir=data_dir,
-                                                  batch_size=FLAGS.batch_size)
+                                                  batch_size=FLAGS.batch_size, basis=basis)
   if FLAGS.use_fp16:
     images = tf.cast(images, tf.float16)
     labels = tf.cast(labels, tf.float16)
   return images, labels
 
 
-def inputs(eval_data):
+def inputs(eval_data, basis):
   """Construct input for CIFAR evaluation using the Reader ops.
 
   Args:
@@ -178,7 +178,7 @@ def inputs(eval_data):
   data_dir = os.path.join(FLAGS.data_dir, 'cifar-10-batches-bin')
   images, labels = mbi_input.inputs(eval_data=eval_data,
                                         data_dir=data_dir,
-                                        batch_size=FLAGS.batch_size)
+                                        batch_size=FLAGS.batch_size,basis=basis)
   if FLAGS.use_fp16:
     images = tf.cast(images, tf.float16)
     labels = tf.cast(labels, tf.float16)
@@ -210,6 +210,18 @@ def inference(images):
     pre_activation = tf.nn.bias_add(conv, biases)
     conv1 = tf.nn.relu(pre_activation, name=scope.name)
     _activation_summary(conv1)
+
+  with tf.variable_scope('visualization'):
+    # scale weights to [0 1], type is still float
+    x_min = tf.reduce_min(kernel)
+    x_max = tf.reduce_max(kernel)
+    kernel_0_to_1 = (kernel - x_min) / (x_max - x_min)
+
+    # to tf.image_summary format [batch_size, height, width, channels]
+    kernel_transposed = tf.transpose (kernel_0_to_1, [3, 0, 1, 2])
+
+    # this will display random 3 filters from the 64 in conv1
+    tf.summary.image('conv1/filters', kernel_transposed, max_outputs=3)
 
   # pool1
   pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],

@@ -36,6 +36,41 @@ NUM_CLASSES = 10
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
 
+def rgb(image):
+    return image
+
+def fft2(image):
+  """Convert to FFT 
+  """
+  comp_image = tf.cast(image, tf.complex64)
+  comp_image = tf.unstack(comp_image,3,2)
+  freqim = tf.fft2d(comp_image[0])
+  fft_0 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  freqim = tf.fft2d(comp_image[1])
+  fft_1 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  freqim = tf.fft2d(comp_image[2])
+  fft_2 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  fft_image = tf.stack([fft_0,fft_1,fft_2], axis=2)
+
+  return fft_image
+
+def fft(image):
+  """Convert to FFT 
+  """
+  comp_image = tf.cast(image, tf.complex64)
+  freqim = tf.fft3d(comp_image)
+  fft_image = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  return fft_image
+
+def hsv(image):
+  hsv_image = tf.image.rgb_to_hsv(image)
+  return hsv_image
+
+basis_dict = {0 : rgb,
+              1 : fft,
+              2 : hsv,
+              3 : fft2,
+              }
 
 def read_cifar10(filename_queue):
   """Reads and parses examples from CIFAR10 data files.
@@ -137,7 +172,7 @@ def _generate_image_and_label_batch(image, label, min_queue_examples,
   return images, tf.reshape(label_batch, [batch_size])
 
 
-def distorted_inputs(data_dir, batch_size):
+def distorted_inputs(data_dir, batch_size, basis):
   """Construct distorted input for CIFAR training using the Reader ops.
 
   Args:
@@ -183,10 +218,9 @@ def distorted_inputs(data_dir, batch_size):
   distorted_image = tf.image.random_contrast(distorted_image,
                                              lower=0.2, upper=1.8)
   
-  #fft_image = to_FFT(distorted_image)
-  hsv_image = tf.image.rgb_to_hsv(distorted_image)
+  mapped_image = basis_dict[basis](distorted_image)
   # Subtract off the mean and divide by the variance of the pixels.
-  float_image = tf.image.per_image_standardization(hsv_image)
+  float_image = tf.image.per_image_standardization(mapped_image)
   
 
   #tf.summary.image('distorted images', float_images)
@@ -203,7 +237,7 @@ def distorted_inputs(data_dir, batch_size):
                                          shuffle=True)
 
 
-def inputs(eval_data, data_dir, batch_size):
+def inputs(eval_data, data_dir, batch_size, basis):
   """Construct input for CIFAR evaluation using the Reader ops.
 
   Args:
@@ -234,21 +268,19 @@ def inputs(eval_data, data_dir, batch_size):
   read_input = read_cifar10(filename_queue)
   reshaped_image = tf.cast(read_input.uint8image, tf.float32)
 
+  # Image processing for evaluation.
+
   height = IMAGE_SIZE
   width = IMAGE_SIZE
-
-  # Image processing for evaluation.
 
   # Crop the central [height, width] of the image.
   resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
                                                          width, height)
   # Transform the image to desired form.
-  #fft_image = to_FFT(resized_image)
-  hsv_image = tf.image.rgb_to_hsv(resized_image)
-  #dct_image = cv2.dct(resized_image)
+  mapped_image = basis_dict[basis](resized_image)
 
   # Subtract off the mean and divide by the variance of the pixels.
-  float_image = tf.image.per_image_standardization(hsv_image)
+  float_image = tf.image.per_image_standardization(mapped_image)
 
   # Ensure that the random shuffling has good mixing properties.
   min_fraction_of_examples_in_queue = 0.4
@@ -260,12 +292,3 @@ def inputs(eval_data, data_dir, batch_size):
                                          min_queue_examples, batch_size,
                                          shuffle=False)
 
-def to_FFT(image):
-  """Convert to FFT of RGB channels
-  """
-  fftim = np.zeros(image.get_size())
-  comp_image = tf.cast(image, tf.complex64)
-  for n in [0,1,2]
-      freqim = tf.fft2d(comp_image)
-      fftim[:,:,n] = 20*tf.log(tf.complex_abs(freqim)+0.0001)
-  return fftim
