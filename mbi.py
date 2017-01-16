@@ -49,7 +49,7 @@ import mbi_input
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters.
-tf.app.flags.DEFINE_integer('batch_size', 128,
+tf.app.flags.DEFINE_integer('batch_size', 100,
                             """Number of images to process in a batch.""")
 tf.app.flags.DEFINE_string('data_dir', '/home/charlie/mbi_experiment/cifar10_data',
                            """Path to the CIFAR-10 data directory.""")
