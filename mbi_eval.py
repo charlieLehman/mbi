@@ -52,13 +52,25 @@ tf.app.flags.DEFINE_string('fft_eval_dir', '/home/charlie/mbi_experiment/fft_eva
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('hsv_eval_dir', '/home/charlie/mbi_experiment/hsv_eval',
                            """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('dct_eval_dir', '/home/charlie/mbi_experiment/dct_eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('right_proj_eval_dir', '/home/charlie/mbi_experiment/right_proj_eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('left_proj_eval_dir', '/home/charlie/mbi_experiment/left_proj_eval',
+                           """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('eval_data', 'test',
                            """Either 'test' or 'train_eval'.""")
 tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
                            """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('ffg_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
+tf.app.flags.DEFINE_string('fft_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('hsv_checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('dct_checkpoint_dir', '/home/charlie/mbi_experiment/dct_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('right_proj_checkpoint_dir', '/home/charlie/mbi_experiment/right_proj_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experiment/left_proj_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 5,
                             """How often to run the eval.""")
@@ -181,8 +193,12 @@ def main(argv=None):  # pylint: disable=unused-argument
   tf.gfile.MakeDirs(FLAGS.eval_dir)
 
   rgb_logits, rgb_labels = evaluate(0)
-  fft_logits, fft_labels = evaluate(3)
-  hsv_logits, hsv_labels = evaluate(2)
+  fft_logits, fft_labels = evaluate(1)
+  #hsv_logits, hsv_labels = evaluate(2)
+  dct_logits, dct_labels = evaluate(3)
+  right_proj_logits, right_proj_labels = evaluate(4)
+  left_proj_logits, left_proj_labels = evaluate(5)
+
   assert np.logical_and(np.equal(rgb_labels, fft_labels)), 'Label Mismatch'
 
   late_fuse = np.argmax(rgb_logits+fft_logits+hsv_logits)

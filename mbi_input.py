@@ -39,7 +39,7 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
 def rgb(image):
     return image
 
-def fft2(image):
+def fft(image):
   """Convert to FFT 
   """
   comp_image = tf.cast(image, tf.complex64)
@@ -51,25 +51,54 @@ def fft2(image):
   freqim = tf.fft2d(comp_image[2])
   fft_2 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
   fft_image = tf.stack([fft_0,fft_1,fft_2], axis=2)
-
-  return fft_image
-
-def fft(image):
-  """Convert to FFT 
-  """
-  comp_image = tf.cast(image, tf.complex64)
-  freqim = tf.fft3d(comp_image)
-  fft_image = 20*tf.log(tf.complex_abs(freqim)+0.0001)
   return fft_image
 
 def hsv(image):
   hsv_image = tf.image.rgb_to_hsv(image)
   return hsv_image
 
+def dct(image):
+    flt32_image = tf.cast(image, tf.float32)
+    flt32_image = tf.unstack(flt32_image,3,2)
+    dctim_0 = cv2.dct(flt32_image[0])
+    dctim_1 = cv2.dct(flt32_image[1])
+    dctim_2 = cv2.dct(flt32_image[2])
+    dct_image = tf.stack([dctim_0,dctim_1,dctim_2], axis=2)
+    return dct_image
+
+
+def right_proj(image):
+    image32 = tf.cast(image, tf.float32)
+    image32 = tf.unstack(image32,3,2)
+    s0, u0, v0 = tf.svd(image32[0],full_matrices=True, compute_uv=True)
+    s1, u1, v1 = tf.svd(image32[1],full_matrices=True, compute_uv=True)
+    s2, u2, v2 = tf.svd(image32[2],full_matrices=True, compute_uv=True)
+    pim0 = u0*s0*tf.matrix_inverse(v0)
+    pim1 = u1*s1*tf.matrix_inverse(v1)
+    pim2 = u2*s2*tf.matrix_inverse(v2)
+    proj_image = tf.stack([pim0,pim1,pim2], axis=2)
+
+    return proj_image
+
+def left_proj(image):
+    image32 = tf.cast(image, tf.float32)
+    image32 = tf.unstack(image32,3,2)
+    s0, u0, v0 = tf.svd(image32[0],full_matrices=True, compute_uv=True)
+    s1, u1, v1 = tf.svd(image32[1],full_matrices=True, compute_uv=True)
+    s2, u2, v2 = tf.svd(image32[2],full_matrices=True, compute_uv=True)
+    pim0 = tf.matrix_inverse(u0)*s0*v0
+    pim1 = tf.matrix_inverse(u1)*s1*v1
+    pim2 = tf.matrix_inverse(u2)*s2*v2
+    proj_image = tf.stack([pim0,pim1,pim2], axis=2)
+
+    return proj_image
+
 basis_dict = {0 : rgb,
               1 : fft,
               2 : hsv,
-              3 : fft2,
+              3 : dct,
+              4 : right_proj,
+              5 : left_proj,
               }
 
 def read_cifar10(filename_queue):
