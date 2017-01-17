@@ -74,13 +74,13 @@ tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experi
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 5,
                             """How often to run the eval.""")
-tf.app.flags.DEFINE_integer('num_examples', 200,
+tf.app.flags.DEFINE_integer('num_examples', 100,
                             """Number of examples to run.""")
 tf.app.flags.DEFINE_boolean('run_once', True,
                          """Whether to run eval only once.""")
 
 
-def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat, logits, labels, basis):
+def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat, guess, labels, basis):
   """Run Eval once.
 
   Args:
@@ -114,25 +114,19 @@ def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_
       true_count = 0  # Counts the number of correct predictions.
       total_sample_count = num_iter * FLAGS.batch_size
       step = 0
+      guess_stream = np.array([]) 
+      label_stream = np.array([]) 
+      confusion = np.zeros(np.shape(conf_mat.eval()))
       while step < num_iter and not coord.should_stop():
-        if step == 0:
-            logit_stream = sess.run([tf.argmax(logits,axis=1)])
-            label_stream = sess.run([labels])
 
-            predictions = sess.run([top_k_op])
+        guess_stream = np.append(guess_stream,guess.eval())
+        label_stream = np.append(label_stream,labels.eval())
 
-            confusion = sess.run([conf_mat])[0]
-            true_count += np.sum(predictions)
-            step += 1
-        else:
-            logit_stream = np.concatenate([logit_stream, sess.run([tf.argmax(logits,axis=1)])], axis=1)
-            label_stream = np.concatenate([label_stream, sess.run([labels])], axis=1)
+        predictions = top_k_op.eval()
 
-            predictions = sess.run([top_k_op])
-
-            confusion += sess.run([conf_mat])[0]
-            true_count += np.sum(predictions)
-            step += 1
+        confusion += conf_mat.eval()
+        true_count += np.sum(predictions)
+        step += 1
 
       # Compute precision @ 1.
       precision = true_count / total_sample_count
@@ -148,7 +142,7 @@ def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_
 
     coord.request_stop()
     coord.join(threads, stop_grace_period_secs=10)
-    return logit_stream, label_stream
+    return guess_stream, label_stream
 
 
 def evaluate(basis,eval_dir, checkpoint_dir):
@@ -160,16 +154,20 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
   with tf.Graph().as_default() as g:
     # Get images and labels for CIFAR-10.
-    eval_data = FLAGS.eval_data == 'train_eval'
+    eval_data = FLAGS.eval_data == 'test'
 
     images, labels = mbi.inputs(eval_data=eval_data, basis=basis)
 
+    labels =  tf.Print(labels,[labels],message="Label: ")
     # Build a Graph that computes the logits predictions from the
     # inference model.
     logits = tf.nn.softmax(mbi.inference(images))
-    
+
+    guess = tf.argmax(logits,1)
+    guess = tf.Print(guess, [guess], message="Guess: ")
+
     # Build Confusion Matrix
-    conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
+    conf_mat = tf.contrib.metrics.confusion_matrix(labels, guess)
 
     # Calculate predictions.
     top_k_op = tf.nn.in_top_k(logits, labels, 1)
@@ -186,11 +184,11 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     summary_writer = tf.summary.FileWriter(eval_dir, g)
 
     while True:
-      logit_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat,logits, labels, basis)
+      guess_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat,guess, labels, basis)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)
-    return logit_stream, label_stream
+    return guess_stream, label_stream
 
 
 
@@ -213,12 +211,12 @@ def main(argv=None):  # pylint: disable=unused-argument
   #print(rgb_labels[0])
   #print(np.shape(rgb_labels))
 
-  print(rgb_labels)
-  print(rgb_logits)
+  #print(rgb_logits)
+  #print(rgb_labels)
 
-  prediction_performance = np.equal(rgb_logits, rgb_labels) + 0
+  #prediction_performance = np.equal(rgb_logits.astype(int), rgb_labels.astype(int)) + 0
 
-  print(np.sum(prediction_performance)/np.shape(rgb_labels)[1])
+  #print(np.sum(prediction_performance)/np.shape(rgb_labels))
 
 
 
