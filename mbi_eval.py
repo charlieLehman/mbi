@@ -80,13 +80,12 @@ tf.app.flags.DEFINE_boolean('run_once', True,
                          """Whether to run eval only once.""")
 
 
-def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op,   basis):
+def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, logits, conf_mat):
   """Run Eval once.
 
   Args:
     saver: Saver.
     summary_writer: Summary writer.
-    top_k_op: Top K op.
     summary_op: Summary op.
   """
   with tf.Session() as sess:
@@ -111,38 +110,31 @@ def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op,   bas
                                          start=True))
 
       num_iter = int(math.ceil(FLAGS.num_examples / FLAGS.batch_size))
-      true_count = 0  # Counts the number of correct predictions.
       total_sample_count = num_iter * FLAGS.batch_size
       step = 0
-      #guess_strea = np.array([]) 
-      label_strea = np.array([]) 
-      #:confusion = np.zeros(np.shape(conf_mat.eval()))
+      guess_stream = np.zeros((num_iter,FLAGS.batch_size,10))
+      label_stream = np.zeros((num_iter,FLAGS.batch_size)) 
+      confusion = np.zeros((10,10))
       while step < num_iter and not coord.should_stop():
-
-        #guess_strea = np.append(guess_strea,guess_stream.eval())
-        #label_strea = np.append(label_strea,label_stream.eval())
-
-        predictions = top_k_op.eval()
-
-        #confusion += conf_mat.eval()
-        true_count += np.sum(predictions)
+        logitss, labelss, confusions = sess.run([logits, labels, conf_mat])
+        label_stream[step] = labelss
+        guess_stream[step] = logitss
+        confusion += confusions
         step += 1
 
-      # Compute precision @ 1.
-      precision = true_count / total_sample_count
-      print('%s: precision @ 1 = %.3f' % (datetime.now(), precision))
-      #print(confusion)
+
+
+      print(confusion)
 
       summary = tf.Summary()
       summary.ParseFromString(sess.run(summary_op))
-      summary.value.add(tag='Precision @ 1', simple_value=precision)
       summary_writer.add_summary(summary, global_step)
     except Exception as e:  # pylint: disable=broad-except
       coord.request_stop(e)
 
     coord.request_stop()
     coord.join(threads, stop_grace_period_secs=10)
-    return label_strea
+    return guess_stream, label_stream
 
 
 def evaluate(basis,eval_dir, checkpoint_dir):
@@ -162,14 +154,12 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     # inference model.
     logits = tf.nn.softmax(mbi.inference(images))
 
-    label =  tf.Print(labels,[labels],message="Label: ")
+    labels =  tf.Print(labels,[labels],message="Label: ")
+    logits =  tf.Print(logits,[logits],message="Logits: ")
 
     # Build Confusion Matrix
-    #conf_mat = tf.contrib.metrics.confusion_matrix(labels, logits)
+    conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
 
-
-    # Calculate predictions.
-    top_k_op = tf.nn.in_top_k(logits, labels, 1)
 
     # Restore the moving average version of the learned variables for eval.
     variable_averages = tf.train.ExponentialMovingAverage(
@@ -183,11 +173,11 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     summary_writer = tf.summary.FileWriter(eval_dir, g)
 
     while True:
-      label_strea = eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op,  basis)
+      logit_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits, conf_mat)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)
-    return label_strea
+    return logit_stream ,label_stream
 
 
 
@@ -195,6 +185,7 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 def main(argv=None):  # pylint: disable=unused-argument
 
   rgb_logits, rgb_labels = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
+  
   #fft_logits, fft_labels = evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   #hsv_logits, hsv_labels = evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   #dct_logits, dct_labels = evaluate(3, FLAGS.dct_eval_dir)
@@ -204,18 +195,17 @@ def main(argv=None):  # pylint: disable=unused-argument
   #assert np.logical_and(np.equal(rgb_labels, fft_labels)), 'Label Mismatch'
 
   #late_fuse = np.argmax(0.7*rgb_logits+0.1*fft_logits+0.1*hsv_logits+0.05*right_proj_logits+0.05*left_proj_logits, axis=2)
-
-  #late_fuse = np.argmax(rgb_logits, axis=2)
-
-  #print(rgb_labels[0])
+  #print(np.shape(rgb_logits))
   #print(np.shape(rgb_labels))
 
-  #print(rgb_logits)
-  #print(rgb_labels)
+  late_fuse = np.argmax(rgb_logits, axis=2)
 
-  prediction_performance = np.equal(rgb_logits.astype(int), rgb_labels.astype(int)) + 0
+  #print(np.shape(late_fuse))
 
-  print(np.sum(prediction_performance)/np.shape(rgb_labels))
+  prediction_performance = np.equal(late_fuse, rgb_labels) + 0
+  print(np.shape(prediction_performance))
+
+  print(np.sum(prediction_performance,axis=1)/FLAGS.batch_size)
 
 
 
