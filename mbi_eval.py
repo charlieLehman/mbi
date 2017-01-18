@@ -74,13 +74,13 @@ tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experi
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 5,
                             """How often to run the eval.""")
-tf.app.flags.DEFINE_integer('num_examples', 100,
+tf.app.flags.DEFINE_integer('num_examples', 300,
                             """Number of examples to run.""")
 tf.app.flags.DEFINE_boolean('run_once', True,
                          """Whether to run eval only once.""")
 
 
-def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat, guess, labels, basis):
+def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op,   basis):
   """Run Eval once.
 
   Args:
@@ -114,24 +114,24 @@ def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_
       true_count = 0  # Counts the number of correct predictions.
       total_sample_count = num_iter * FLAGS.batch_size
       step = 0
-      guess_stream = np.array([]) 
-      label_stream = np.array([]) 
-      confusion = np.zeros(np.shape(conf_mat.eval()))
+      #guess_strea = np.array([]) 
+      label_strea = np.array([]) 
+      #:confusion = np.zeros(np.shape(conf_mat.eval()))
       while step < num_iter and not coord.should_stop():
 
-        guess_stream = np.append(guess_stream,guess.eval())
-        label_stream = np.append(label_stream,labels.eval())
+        #guess_strea = np.append(guess_strea,guess_stream.eval())
+        #label_strea = np.append(label_strea,label_stream.eval())
 
         predictions = top_k_op.eval()
 
-        confusion += conf_mat.eval()
+        #confusion += conf_mat.eval()
         true_count += np.sum(predictions)
         step += 1
 
       # Compute precision @ 1.
       precision = true_count / total_sample_count
       print('%s: precision @ 1 = %.3f' % (datetime.now(), precision))
-      print(confusion)
+      #print(confusion)
 
       summary = tf.Summary()
       summary.ParseFromString(sess.run(summary_op))
@@ -142,7 +142,7 @@ def eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_
 
     coord.request_stop()
     coord.join(threads, stop_grace_period_secs=10)
-    return guess_stream, label_stream
+    return label_strea
 
 
 def evaluate(basis,eval_dir, checkpoint_dir):
@@ -158,16 +158,15 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
     images, labels = mbi.inputs(eval_data=eval_data, basis=basis)
 
-    labels =  tf.Print(labels,[labels],message="Label: ")
     # Build a Graph that computes the logits predictions from the
     # inference model.
     logits = tf.nn.softmax(mbi.inference(images))
 
-    guess = tf.argmax(logits,1)
-    guess = tf.Print(guess, [guess], message="Guess: ")
+    label =  tf.Print(labels,[labels],message="Label: ")
 
     # Build Confusion Matrix
-    conf_mat = tf.contrib.metrics.confusion_matrix(labels, guess)
+    #conf_mat = tf.contrib.metrics.confusion_matrix(labels, logits)
+
 
     # Calculate predictions.
     top_k_op = tf.nn.in_top_k(logits, labels, 1)
@@ -184,11 +183,11 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     summary_writer = tf.summary.FileWriter(eval_dir, g)
 
     while True:
-      guess_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op, conf_mat,guess, labels, basis)
+      label_strea = eval_once(checkpoint_dir, saver, summary_writer, top_k_op, summary_op,  basis)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)
-    return guess_stream, label_stream
+    return label_strea
 
 
 
@@ -214,9 +213,9 @@ def main(argv=None):  # pylint: disable=unused-argument
   #print(rgb_logits)
   #print(rgb_labels)
 
-  #prediction_performance = np.equal(rgb_logits.astype(int), rgb_labels.astype(int)) + 0
+  prediction_performance = np.equal(rgb_logits.astype(int), rgb_labels.astype(int)) + 0
 
-  #print(np.sum(prediction_performance)/np.shape(rgb_labels))
+  print(np.sum(prediction_performance)/np.shape(rgb_labels))
 
 
 
