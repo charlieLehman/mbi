@@ -80,7 +80,7 @@ tf.app.flags.DEFINE_boolean('run_once', True,
                          """Whether to run eval only once.""")
 
 
-def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, logits, conf_mat):
+def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, logits):
   """Run Eval once.
 
   Args:
@@ -112,19 +112,19 @@ def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, 
       num_iter = int(math.ceil(FLAGS.num_examples / FLAGS.batch_size))
       total_sample_count = num_iter * FLAGS.batch_size
       step = 0
-      guess_stream = np.zeros((num_iter,FLAGS.batch_size,10))
+      guess_stream = np.zeros((num_iter,FLAGS.batch_size,mbi.NUM_CLASSES))
       label_stream = np.zeros((num_iter,FLAGS.batch_size)) 
-      confusion = np.zeros((10,10))
+      #confusion = np.zeros(mbi_input.NUM_CLASSES)
       while step < num_iter and not coord.should_stop():
-        logitss, labelss, confusions = sess.run([logits, labels, conf_mat])
+        logitss, labelss = sess.run([logits, labels])
         label_stream[step] = labelss
         guess_stream[step] = logitss
-        confusion += confusions
+        #confusion += confusions
         step += 1
 
 
 
-      print(confusion)
+      #print(confusion)
 
       summary = tf.Summary()
       summary.ParseFromString(sess.run(summary_op))
@@ -146,19 +146,19 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
   with tf.Graph().as_default() as g:
     # Get images and labels for CIFAR-10.
-    eval_data = FLAGS.eval_data == 'test'
+    #eval_data = FLAGS.eval_data == 'test'
+    images, labels = mbi.inputs(eval_data=FLAGS.eval_data,basis=basis)
 
-    images, labels = mbi.inputs(eval_data=eval_data, basis=basis)
 
     # Build a Graph that computes the logits predictions from the
     # inference model.
     logits = tf.nn.softmax(mbi.inference(images))
 
-    labels =  tf.Print(labels,[labels],message="Label: ")
-    logits =  tf.Print(logits,[logits],message="Logits: ")
+    #labels =  tf.Print(labels,[labels],message="Label: ")
+    #logits =  tf.Print(logits,[logits],message="Logits: ")
 
     # Build Confusion Matrix
-    conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
+    #conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
 
 
     # Restore the moving average version of the learned variables for eval.
@@ -173,7 +173,7 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     summary_writer = tf.summary.FileWriter(eval_dir, g)
 
     while True:
-      logit_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits, conf_mat)
+      logit_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits)
       if FLAGS.run_once:
         break
       time.sleep(FLAGS.eval_interval_secs)
@@ -184,10 +184,11 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
 def main(argv=None):  # pylint: disable=unused-argument
 
+
   rgb_logits, rgb_labels = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
   
-  #fft_logits, fft_labels = evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
-  #hsv_logits, hsv_labels = evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
+  fft_logits, fft_labels = evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
+  hsv_logits, hsv_labels = evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   #dct_logits, dct_labels = evaluate(3, FLAGS.dct_eval_dir)
   #right_proj_logits, right_proj_labels = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
   #left_proj_logits, left_proj_labels = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
@@ -198,14 +199,35 @@ def main(argv=None):  # pylint: disable=unused-argument
   #print(np.shape(rgb_logits))
   #print(np.shape(rgb_labels))
 
-  late_fuse = np.argmax(rgb_logits, axis=2)
 
-  #print(np.shape(late_fuse))
 
-  prediction_performance = np.equal(late_fuse, rgb_labels) + 0
-  print(np.shape(prediction_performance))
 
-  print(np.sum(prediction_performance,axis=1)/FLAGS.batch_size)
+
+  total_examples = FLAGS.num_examples
+
+  rgb_guess = np.argmax(rgb_logits, axis=2)
+  fft_guess = np.argmax(fft_logits, axis=2)
+  hsv_guess = np.argmax(hsv_logits, axis=2)
+  fuse_guess = np.argmax(rgb_logits+fft_logits+hsv_logits, axis=2)
+
+  rgb_guess = np.reshape(rgb_guess, (FLAGS.num_examples,1))
+  fft_guess = np.reshape(fft_guess, (FLAGS.num_examples,1))
+  hsv_guess = np.reshape(hsv_guess, (FLAGS.num_examples,1))
+  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
+  eval_labels = np.reshape(rgb_labels, (FLAGS.num_examples,1))
+
+
+  rgb_performance = np.equal(rgb_guess, eval_labels) + 0
+  fft_performance = np.equal(fft_guess, eval_labels) + 0
+  hsv_performance = np.equal(hsv_guess, eval_labels) + 0
+  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
+
+
+
+  print("RGB: %.3f " % np.sum(rgb_performance/total_examples))
+  print("FFT: %.3f " % np.sum(fft_performance/total_examples))
+  print("HSV: %.3f " % np.sum(hsv_performance/total_examples))
+  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
 
 
 
