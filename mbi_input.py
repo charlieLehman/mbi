@@ -53,6 +53,14 @@ def fft(image):
   fft_image = tf.stack([fft_0,fft_1,fft_2], axis=2)
   return fft_image
 
+def fft2(image):
+  """Convert to FFT 
+  """
+  comp_image = tf.cast(image, tf.complex64)
+  freqim = tf.fft3d(comp_image)
+  fft_image = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  return fft_image
+
 def hsv(image):
   hsv_image = tf.image.rgb_to_hsv(image)
   return hsv_image

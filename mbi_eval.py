@@ -74,13 +74,10 @@ tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experi
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('eval_interval_secs', 5,
                             """How often to run the eval.""")
-tf.app.flags.DEFINE_integer('num_examples', 300,
+tf.app.flags.DEFINE_integer('num_examples', 1000,
                             """Number of examples to run.""")
-tf.app.flags.DEFINE_boolean('run_once', True,
-                         """Whether to run eval only once.""")
 
-
-def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, logits):
+def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, logits, conf_mat):
   """Run Eval once.
 
   Args:
@@ -114,17 +111,15 @@ def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, 
       step = 0
       guess_stream = np.zeros((num_iter,FLAGS.batch_size,mbi.NUM_CLASSES))
       label_stream = np.zeros((num_iter,FLAGS.batch_size)) 
-      #confusion = np.zeros(mbi_input.NUM_CLASSES)
+      confusion = np.zeros([mbi.NUM_CLASSES,mbi.NUM_CLASSES])
       while step < num_iter and not coord.should_stop():
-        logitss, labelss = sess.run([logits, labels])
+        logitss, labelss, confusions = sess.run([logits, labels, conf_mat])
         label_stream[step] = labelss
         guess_stream[step] = logitss
-        #confusion += confusions
+        confusion += confusions
         step += 1
 
-
-
-      #print(confusion)
+      print(confusion)
 
       summary = tf.Summary()
       summary.ParseFromString(sess.run(summary_op))
@@ -158,7 +153,7 @@ def evaluate(basis,eval_dir, checkpoint_dir):
     #logits =  tf.Print(logits,[logits],message="Logits: ")
 
     # Build Confusion Matrix
-    #conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
+    conf_mat = tf.contrib.metrics.confusion_matrix(labels, tf.argmax(logits,1))
 
 
     # Restore the moving average version of the learned variables for eval.
@@ -172,12 +167,7 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
     summary_writer = tf.summary.FileWriter(eval_dir, g)
 
-    while True:
-      logit_stream, label_stream = eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits)
-      if FLAGS.run_once:
-        break
-      time.sleep(FLAGS.eval_interval_secs)
-    return logit_stream ,label_stream
+    return eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits, conf_mat)
 
 
 
@@ -189,31 +179,23 @@ def main(argv=None):  # pylint: disable=unused-argument
   fft_logits, fft_labels = evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels = evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   #dct_logits, dct_labels = evaluate(3, FLAGS.dct_eval_dir)
-  right_proj_logits, right_proj_labels = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
+  #right_proj_logits, right_proj_labels = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
   #left_proj_logits, left_proj_labels = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
 
-  #assert np.logical_and(np.equal(rgb_labels, fft_labels)), 'Label Mismatch'
-
-  #late_fuse = np.argmax(0.7*rgb_logits+0.1*fft_logits+0.1*hsv_logits+0.05*right_proj_logits+0.05*left_proj_logits, axis=2)
-  #print(np.shape(rgb_logits))
-  #print(np.shape(rgb_labels))
-
-
-
-
+  assert np.equal(rgb_labels, fft_labels).all(), 'Label Mismatch'
 
   total_examples = FLAGS.num_examples
 
   rgb_guess = np.argmax(rgb_logits, axis=2)
   fft_guess = np.argmax(fft_logits, axis=2)
   hsv_guess = np.argmax(hsv_logits, axis=2)
-  rpr_guess = np.argmax(right_proj_logits, axis=2)
-  fuse_guess = np.argmax(rgb_logits+fft_logits+hsv_logits+right_proj_logits, axis=2)
+  #rpr_guess = np.argmax(right_proj_logits, axis=2)
+  fuse_guess = np.argmax(rgb_logits+0.0*fft_logits+hsv_logits, axis=2)
 
   rgb_guess = np.reshape(rgb_guess, (FLAGS.num_examples,1))
   fft_guess = np.reshape(fft_guess, (FLAGS.num_examples,1))
   hsv_guess = np.reshape(hsv_guess, (FLAGS.num_examples,1))
-  rpr_guess = np.reshape(rpr_guess, (FLAGS.num_examples,1))
+  #rpr_guess = np.reshape(rpr_guess, (FLAGS.num_examples,1))
   fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
   eval_labels = np.reshape(rgb_labels, (FLAGS.num_examples,1))
 
@@ -221,7 +203,7 @@ def main(argv=None):  # pylint: disable=unused-argument
   rgb_performance = np.equal(rgb_guess, eval_labels) + 0
   fft_performance = np.equal(fft_guess, eval_labels) + 0
   hsv_performance = np.equal(hsv_guess, eval_labels) + 0
-  rpr_performance = np.equal(rpr_guess, eval_labels) + 0
+  #rpr_performance = np.equal(rpr_guess, eval_labels) + 0
   fuse_performance = np.equal(fuse_guess, eval_labels) + 0
 
 
@@ -229,11 +211,8 @@ def main(argv=None):  # pylint: disable=unused-argument
   print("RGB: %.3f " % np.sum(rgb_performance/total_examples))
   print("FFT: %.3f " % np.sum(fft_performance/total_examples))
   print("HSV: %.3f " % np.sum(hsv_performance/total_examples))
-  print("RPR: %.3f " % np.sum(rpr_performance/total_examples))
+  #print("RPR: %.3f " % np.sum(rpr_performance/total_examples))
   print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-
-
-
 
 
 if __name__ == '__main__':
