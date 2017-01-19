@@ -67,7 +67,7 @@ tf.app.flags.DEFINE_string('right_proj_dir', '/home/charlie/mbi_experiment/right
 tf.app.flags.DEFINE_string('left_proj_dir', '/home/charlie/mbi_experiment/left_proj_train',
                            """Directory where to write event logs """
                            """and checkpoint.""")
-tf.app.flags.DEFINE_integer('max_steps', 1000,
+tf.app.flags.DEFINE_integer('max_steps', 400,
                             """Number of batches to run.""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False,
                             """Whether to log device placement.""")
@@ -139,7 +139,7 @@ def train(train_dir, basis):
         summary_writer.add_summary(summary_str, step)
 
       # Save the model checkpoint periodically.
-      if step % 10000 == 0 or (step + 1) == FLAGS.max_steps:
+      if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
         checkpoint_path = os.path.join(train_dir, 'model.ckpt')
         saver.save(sess, checkpoint_path, global_step=step)
 
@@ -147,9 +147,9 @@ def train(train_dir, basis):
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
   #train(FLAGS.rgb_dir,0)
-  train(FLAGS.fft_dir,1)
+  #train(FLAGS.fft_dir,1)
   #train(FLAGS.hsv_dir,2)
-  #train(FLAGS.dct_dir,3)
+  train(FLAGS.dct_dir,3)
   #train(FLAGS.right_proj_dir,4)
   #train(FLAGS.left_proj_dir,5)
 

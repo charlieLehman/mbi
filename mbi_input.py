@@ -25,6 +25,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import numpy as np
 import cv2
+import math
 
 # Process images of this size. Note that this differs from the original CIFAR
 # image size of 32 x 32. If one alters this number, then the entire model
@@ -36,6 +37,15 @@ NUM_CLASSES = 10
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
 NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000 
 
+def fft_shift(image):
+  r0,r1 = tf.split(1,2, image)
+  w0,w2 = tf.split(0,2, r0)
+  w1,w3 = tf.split(0,2, r1)
+  shifted_top = tf.concat(0, [w3, w1]) 
+  shifted_bot = tf.concat(0, [w2, w0]) 
+  shifted_image = tf.concat(1, [shifted_top, shifted_bot]) 
+  return shifted_image
+
 def rgb(image):
     return image
 
@@ -45,11 +55,11 @@ def fft(image):
   comp_image = tf.cast(image, tf.complex64)
   comp_image = tf.unstack(comp_image,3,2)
   freq0 = tf.fft2d(comp_image[0])
-  fft_0 = tf.complex_abs(20*tf.log(freq0+0.001))
+  fft_0 = fft_shift(tf.complex_abs(20*tf.log(freq0+0.001)))
   freq1 = tf.fft2d(comp_image[1])
-  fft_1 = tf.complex_abs(20*tf.log(freq1+0.001))
+  fft_1 = fft_shift(tf.complex_abs(20*tf.log(freq1+0.001)))
   freq2 = tf.fft2d(comp_image[2])
-  fft_2 = tf.complex_abs(20*tf.log(freq2+0.001))
+  fft_2 = fft_shift(tf.complex_abs(20*tf.log(freq2+0.001)))
   fft_image = tf.stack([fft_0,fft_1,fft_2], axis=2)
   return fft_image
 
@@ -65,12 +75,27 @@ def hsv(image):
   hsv_image = tf.image.rgb_to_hsv(image)
   return hsv_image
 
+def dct_mtx(M):
+    T = np.zeros([M,M])
+    for q in xrange(0,M-1):
+        for p in xrange(0,M-1):
+            if p+q == 0:
+                T[p,q] = 1/M*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
+
+            elif p+q == 1:
+                T[p,q] = np.sqrt(2/M)*1/np.sqrt(M)*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
+            else:
+                T[p,q] = np.sqrt(2/M)*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
+
+    return tf.cast(T,tf.float32)
+                
 def dct(image):
+    T = dct_mtx(IMAGE_SIZE)
     flt32_image = tf.cast(image, tf.float32)
     flt32_image = tf.unstack(flt32_image,3,2)
-    dctim_0 = cv2.dct(flt32_image[0])
-    dctim_1 = cv2.dct(flt32_image[1])
-    dctim_2 = cv2.dct(flt32_image[2])
+    dctim_0 = T*flt32_image[0]*tf.matrix_inverse(T)
+    dctim_1 = T*flt32_image[1]*tf.matrix_inverse(T)
+    dctim_2 = T*flt32_image[2]*tf.matrix_inverse(T)
     dct_image = tf.stack([dctim_0,dctim_1,dctim_2], axis=2)
     return dct_image
 
