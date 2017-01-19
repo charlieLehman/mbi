@@ -44,12 +44,12 @@ def fft(image):
   """
   comp_image = tf.cast(image, tf.complex64)
   comp_image = tf.unstack(comp_image,3,2)
-  freqim = tf.fft2d(comp_image[0])
-  fft_0 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
-  freqim = tf.fft2d(comp_image[1])
-  fft_1 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
-  freqim = tf.fft2d(comp_image[2])
-  fft_2 = 20*tf.log(tf.complex_abs(freqim)+0.0001)
+  freq0 = tf.fft2d(comp_image[0])
+  fft_0 = tf.complex_abs(20*tf.log(freq0+0.001))
+  freq1 = tf.fft2d(comp_image[1])
+  fft_1 = tf.complex_abs(20*tf.log(freq1+0.001))
+  freq2 = tf.fft2d(comp_image[2])
+  fft_2 = tf.complex_abs(20*tf.log(freq2+0.001))
   fft_image = tf.stack([fft_0,fft_1,fft_2], axis=2)
   return fft_image
 
@@ -271,7 +271,7 @@ def distorted_inputs(data_dir, batch_size, basis):
   # Generate a batch of images and labels by building up a queue of examples.
   return _generate_image_and_label_batch(float_image, read_input.label,
                                          min_queue_examples, batch_size,
-                                         shuffle=False)
+                                         shuffle=True)
 
 
 def inputs(eval_data, data_dir, batch_size, basis):
@@ -311,10 +311,16 @@ def inputs(eval_data, data_dir, batch_size, basis):
   width = IMAGE_SIZE
 
   # Crop the central [height, width] of the image.
-  resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image,
-                                                         width, height)
+  #resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, width, height)
+
+  # Randomly crop a [height, width] section of the image.
+  distorted_image = tf.random_crop(reshaped_image, [height, width, 3])
+
+  # Randomly flip the image horizontally.
+  distorted_image = tf.image.random_flip_left_right(distorted_image)
+
   # Transform the image to desired form.
-  mapped_image = basis_dict[basis](resized_image)
+  mapped_image = basis_dict[basis](distorted_image)
 
   # Subtract off the mean and divide by the variance of the pixels.
   float_image = tf.image.per_image_standardization(mapped_image)

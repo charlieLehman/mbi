@@ -129,7 +129,7 @@ def eval_once(checkpoint_dir, saver, summary_writer, summary_op, basis, labels, 
 
     coord.request_stop()
     coord.join(threads, stop_grace_period_secs=10)
-    return guess_stream, label_stream
+    return guess_stream, label_stream, confusion
 
 
 def evaluate(basis,eval_dir, checkpoint_dir):
@@ -175,15 +175,17 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 def main(argv=None):  # pylint: disable=unused-argument
 
 
-  rgb_logits, rgb_labels = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
-  fft_logits, fft_labels = evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
-  hsv_logits, hsv_labels = evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
+  rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
+  fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
+  hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   #dct_logits, dct_labels = evaluate(3, FLAGS.dct_eval_dir)
   #right_proj_logits, right_proj_labels = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
   #left_proj_logits, left_proj_labels = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
 
   assert np.equal(rgb_labels, fft_labels).all(), 'Label Mismatch'
 
+  rgb_true_bins = np.sum(rgb_conf, axis=1)
+  print(rgb_true_bins)
   total_examples = FLAGS.num_examples
 
   rgb_guess = np.argmax(rgb_logits, axis=2)
