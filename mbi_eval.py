@@ -171,53 +171,58 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
 
 
-
 def main(argv=None):  # pylint: disable=unused-argument
 
 
   rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
   fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
-  #dct_logits, dct_labels = evaluate(3, FLAGS.dct_eval_dir)
-  right_proj_logits, right_proj_labels, rp_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
-  #left_proj_logits, left_proj_labels = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
+  dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
+  right_proj_logits, right_proj_labels, rpr_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
+  left_proj_logits, left_proj_labels, lpr_conf = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
+
+
 
   assert np.equal(rgb_labels, fft_labels).all(), 'Label Mismatch'
 
-  total_examples = FLAGS.num_examples
-
-  rgb_guess = np.argmax(rgb_logits, axis=2)
-  fft_guess = np.argmax(fft_logits, axis=2)
-  hsv_guess = np.argmax(hsv_logits, axis=2)
-  rpr_guess = np.argmax(right_proj_logits, axis=2)
-  logit_weights = [1,1,1,1]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-
-  rgb_guess = np.reshape(rgb_guess, (FLAGS.num_examples,1))
-  fft_guess = np.reshape(fft_guess, (FLAGS.num_examples,1))
-  hsv_guess = np.reshape(hsv_guess, (FLAGS.num_examples,1))
-  rpr_guess = np.reshape(rpr_guess, (FLAGS.num_examples,1))
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  eval_labels = np.reshape(rgb_labels, (FLAGS.num_examples,1))
-
-
-  rgb_performance = np.equal(rgb_guess, eval_labels) + 0
-  fft_performance = np.equal(fft_guess, eval_labels) + 0
-  hsv_performance = np.equal(hsv_guess, eval_labels) + 0
-  rpr_performance = np.equal(rpr_guess, eval_labels) + 0
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-
-
-
-  print("RGB: %.3f " % np.sum(rgb_performance/total_examples))
-  print("FFT: %.3f " % np.sum(fft_performance/total_examples))
-  print("HSV: %.3f " % np.sum(hsv_performance/total_examples))
-  print("RPR: %.3f " % np.sum(rpr_performance/total_examples))
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
   print("====================")
 
+  key = ['rgb', 'fft', 'hsv', 'dct', 'rpr', 'lpr']
+  logits = [rgb_logits, fft_logits,hsv_logits, dct_logits, right_proj_logits, left_proj_logits]
 
+  weights =  [[1,0,0,0,0,0],
+              [0,1,0,0,0,0],
+              [0,0,1,0,0,0],
+              [0,0,0,1,0,0],
+              [0,0,0,0,1,0],
+              [0,0,0,0,0,1]]
 
+  print(key)
+  print(fuse(weights, rgb_labels, logits))
+
+  weights =  [[1,1,1,1,1,1],
+              [0,1,1,1,1,1],
+              [0,0,1,1,1,1],
+              [0,0,0,1,1,1],
+              [0,0,0,0,1,1]]
+  print(fuse(weights, rgb_labels, logits))
+
+  
+  
+
+def fuse(weights, eval_labels,logits):
+    performance = np.zeros(np.shape(weights)[0]) 
+    for k,n in enumerate(weights):
+        logit_weights = np.array(n)
+        masked_logits = np.zeros(np.shape(logits))
+        for i,m in enumerate(logits):
+            masked_logits[i] = logit_weights[i]*m
+        guess_stream = np.sum(masked_logits, axis=0)
+        guess = np.argmax(guess_stream, axis=2)
+        guess = np.reshape(guess,np.shape(eval_labels))
+        performance_stream = np.equal(guess, eval_labels) + 0
+        performance[k] = np.sum(performance_stream/FLAGS.num_examples)
+    return performance
 
 if __name__ == '__main__':
   tf.app.run()

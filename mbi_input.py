@@ -79,25 +79,21 @@ def dct_mtx(M):
     T = np.zeros([M,M])
     for q in xrange(0,M-1):
         for p in xrange(0,M-1):
-            if p+q == 0:
-                T[p,q] = 1/M*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
-            elif p+q == 1:
-                T[p,q] = np.sqrt(2/M)*1/np.sqrt(M)*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
+            if p == 0:
+                T[p,q] = 1/np.sqrt(M)
             else:
-                T[p,q] = np.sqrt(2/M)*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
-
+                T[p,q] = np.sqrt(2/M)*np.cos((math.pi*(2*q+1)*p)/(2*M))
     return tf.cast(T,tf.float32)
                 
 def dct(image):
     T = dct_mtx(IMAGE_SIZE)
     flt32_image = tf.cast(image, tf.float32)
     flt32_image = tf.unstack(flt32_image,3,2)
-    dctim_0 = T*flt32_image[0]*tf.matrix_inverse(T)
-    dctim_1 = T*flt32_image[1]*tf.matrix_inverse(T)
-    dctim_2 = T*flt32_image[2]*tf.matrix_inverse(T)
+    dctim_0 = tf.matmul(tf.matmul(T,flt32_image[0]),T,transpose_b=True)
+    dctim_1 = tf.matmul(tf.matmul(T,flt32_image[1]),T,transpose_b=True)
+    dctim_2 = tf.matmul(tf.matmul(T,flt32_image[2]),T,transpose_b=True)
     dct_image = tf.stack([dctim_0,dctim_1,dctim_2], axis=2)
     return dct_image
-
 
 def right_proj(image):
     image32 = tf.cast(image, tf.float32)
@@ -105,11 +101,10 @@ def right_proj(image):
     s0, u0, v0 = tf.svd(image32[0],full_matrices=True, compute_uv=True)
     s1, u1, v1 = tf.svd(image32[1],full_matrices=True, compute_uv=True)
     s2, u2, v2 = tf.svd(image32[2],full_matrices=True, compute_uv=True)
-    pim0 = u0*s0*tf.matrix_inverse(v0)
-    pim1 = u1*s1*tf.matrix_inverse(v1)
-    pim2 = u2*s2*tf.matrix_inverse(v2)
+    pim0 = u0*s0
+    pim1 = u1*s1
+    pim2 = u2*s2
     proj_image = tf.stack([pim0,pim1,pim2], axis=2)
-
     return proj_image
 
 def left_proj(image):
@@ -118,11 +113,10 @@ def left_proj(image):
     s0, u0, v0 = tf.svd(image32[0],full_matrices=True, compute_uv=True)
     s1, u1, v1 = tf.svd(image32[1],full_matrices=True, compute_uv=True)
     s2, u2, v2 = tf.svd(image32[2],full_matrices=True, compute_uv=True)
-    pim0 = tf.matrix_inverse(u0)*s0*v0
-    pim1 = tf.matrix_inverse(u1)*s1*v1
-    pim2 = tf.matrix_inverse(u2)*s2*v2
+    pim0 = s0*v0
+    pim1 = s1*v1
+    pim2 = s2*v2
     proj_image = tf.stack([pim0,pim1,pim2], axis=2)
-
     return proj_image
 
 basis_dict = {0 : rgb,
