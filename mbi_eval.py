@@ -217,36 +217,7 @@ def main(argv=None):  # pylint: disable=unused-argument
   print("====================")
 
 
-  logit_weights = [1,0,1,1]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  logit_weights = [1,1,0,1]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  logit_weights = [1,1,1,0]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  logit_weights = [1,1,0,0]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  logit_weights = [1,1,0,1]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  logit_weights = [1,0,0,1]
-  fuse_guess = np.argmax(logit_weights[0]*rgb_logits+logit_weights[1]*fft_logits+logit_weights[2]*hsv_logits+logit_weights[3]*right_proj_logits, axis=2)
-  fuse_guess = np.reshape(fuse_guess, (FLAGS.num_examples,1))
-  fuse_performance = np.equal(fuse_guess, eval_labels) + 0
-  print("FUSE: %.3f " % np.sum(fuse_performance/total_examples))
-  
+
+
 if __name__ == '__main__':
   tf.app.run()

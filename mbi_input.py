@@ -81,7 +81,6 @@ def dct_mtx(M):
         for p in xrange(0,M-1):
             if p+q == 0:
                 T[p,q] = 1/M*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
-
             elif p+q == 1:
                 T[p,q] = np.sqrt(2/M)*1/np.sqrt(M)*np.cos(math.pi*(2*q+1)*p/(2*M))*np.cos(math.pi*(2*p+1)*q/(2*M))
             else:
