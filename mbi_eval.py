@@ -48,6 +48,8 @@ FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('rgb_eval_dir', '/home/charlie/mbi_experiment/rgb_eval',
                            """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('rgb2_eval_dir', '/home/charlie/mbi_experiment/rgb2_eval',
+                           """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('fft_eval_dir', '/home/charlie/mbi_experiment/fft_eval',
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('hsv_eval_dir', '/home/charlie/mbi_experiment/hsv_eval',
@@ -61,6 +63,8 @@ tf.app.flags.DEFINE_string('left_proj_eval_dir', '/home/charlie/mbi_experiment/l
 tf.app.flags.DEFINE_string('eval_data', 'test',
                            """Either 'test' or 'train_eval'.""")
 tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('rgb2_checkpoint_dir', '/home/charlie/mbi_experiment/rgb2_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('fft_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
                            """Directory where to read model checkpoints.""")
@@ -175,6 +179,7 @@ def main(argv=None):  # pylint: disable=unused-argument
 
 
   rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
+  rgb2_logits, rgb2_labels, rgb2_conf = evaluate(0, FLAGS.rgb2_eval_dir, FLAGS.rgb2_checkpoint_dir)
   fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
@@ -183,32 +188,31 @@ def main(argv=None):  # pylint: disable=unused-argument
 
 
 
-  assert np.equal(rgb_labels, fft_labels).all(), 'Label Mismatch'
+  assert np.equal(rgb_labels, rgb2_labels).all(), 'Label Mismatch'
 
   print("====================")
 
-  logits = [rgb_logits, fft_logits, dct_logits, hsv_logits]
+  #logits = [rgb_logits, fft_logits, dct_logits, hsv_logits]
+  logits = [rgb_logits, rgb2_logits, hsv_logits, dct_logits, fft_logits]
+  conf = [rgb_conf, rgb2_conf, hsv_conf, dct_conf, fft_conf]
+  conf_sum = np.sum(conf, axis=0)
 
-  weights =  [[1,0,0,0],
-             [0,1,0,0],
-             [0,0,1,0],
-             [0,0,0,1],
-             [1,0,1,1],
-             [0,1,1,1],
-             [1,1,1,1]]
+  weights =  [[1,1,1,0,0],
+              [1,1,1,0,1],
+              [1,1,1,1,0],
+              [1,1,1,1,1]]
 
   score = fuse(weights, rgb_labels, logits)
-  score_dict = {  '0 RGB' : score[0],
-                  '1 FFT' : score[1],
-                  '2 DCT' : score[2],
-                  '3 HSV' : score[3],
-                  '4 noFFT' : score[4],
-                  '5 noRGB' : score[5],
-                  '6 ALL' : score[6]}
+
+  score_dict = {}
+  for i,n in enumerate(weights):
+      score_dict['%i %s' % (i, n)] = score[i]
+
+  print('r r h d f')
 
   for basis, score in sorted(score_dict.items()): 
       print('%s'  ':'  '%.3f' % (basis, score))
-  
+  print(conf_sum) 
 def fuse(weights, eval_labels,logits):
     performance = np.zeros(np.shape(weights)[0]) 
     for k,n in enumerate(weights):
