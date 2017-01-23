@@ -329,13 +329,13 @@ def inputs(eval_data, data_dir, batch_size, basis):
   width = IMAGE_SIZE
 
   # Crop the central [height, width] of the image.
-  #resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, width, height)
+  resized_image = tf.image.resize_image_with_crop_or_pad(reshaped_image, width, height)
 
   # Randomly crop a [height, width] section of the image.
-  distorted_image = tf.random_crop(reshaped_image, [height, width, 3])
+  #distorted_image = tf.random_crop(reshaped_image, [height, width, 3])
 
   # Randomly flip the image horizontally.
-  distorted_image = tf.image.random_flip_left_right(distorted_image)
+  #distorted_image = tf.image.random_flip_left_right(distorted_image)
 
   # Transform the image to desired form.
   mapped_image = basis_dict[basis](distorted_image)

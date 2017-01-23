@@ -177,15 +177,16 @@ def main(argv=None):  # pylint: disable=unused-argument
   rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
   fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
-  dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
+  #dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
   right_proj_logits, right_proj_labels, rpr_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
-  left_proj_logits, left_proj_labels, lpr_conf = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
+  #left_proj_logits, left_proj_labels, lpr_conf = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
 
 
 
   assert np.equal(rgb_labels, fft_labels).all(), 'Label Mismatch'
 
   print("====================")
+
 
   key = ['rgb', 'fft', 'hsv', 'dct', 'rpr', 'lpr']
   logits = [rgb_logits, fft_logits,hsv_logits, dct_logits, right_proj_logits, left_proj_logits]
