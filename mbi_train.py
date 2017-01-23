@@ -13,25 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 
-"""A binary to train CIFAR-10 using a single GPU.
-
-Accuracy:
-cifar10_train.py achieves ~86% accuracy after 100K steps (256 epochs of
-data) as judged by cifar10_eval.py.
-
-Speed: With batch_size 128.
-
-System        | Step Time (sec/batch)  |     Accuracy
-------------------------------------------------------------------
-1 Tesla K20m  | 0.35-0.60              | ~86% at 60K steps  (5 hours)
-1 Tesla K40m  | 0.25-0.35              | ~86% at 100K steps (4 hours)
-
-Usage:
-Please see the tutorial and website for how to download the CIFAR-10
-data set, compile the program and train the model.
-
-http://tensorflow.org/tutorials/deep_cnn/
-"""
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -77,12 +58,14 @@ def train(train_dir, basis):
   """Train CIFAR-10 for a number of steps."""
   print('Begin training %s for %d steps' % (mbi_input.basis_dict[basis].__name__, FLAGS.max_steps))
 
-  if tf.gfile.Exists(train_dir):
-    tf.gfile.DeleteRecursively(train_dir)
-  tf.gfile.MakeDirs(train_dir)
 
   with tf.Graph().as_default():
-    global_step = tf.Variable(0, trainable=False)
+
+    if tf.gfile.Exists(train_dir):
+      ckpt = tf.train.get_checkpoint_state(train_dir)
+      global_step = tf.Variable(int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]), trainable=False)
+    else:
+      global_step = tf.Variable(0, trainable=False)
 
     # Get images and labels for CIFAR-10.
     images, labels = mbi.distorted_inputs(basis)
@@ -112,12 +95,17 @@ def train(train_dir, basis):
         log_device_placement=FLAGS.log_device_placement))
     sess.run(init)
 
+    if tf.gfile.Exists(train_dir):
+      tf.train.Saver().restore(sess, ckpt.model_checkpoint_path)
+      global_step = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
+    else:
+      tf.gfile.MakeDirs(train_dir)
+
     # Start the queue runners.
     tf.train.start_queue_runners(sess=sess)
-
     summary_writer = tf.summary.FileWriter(train_dir, sess.graph)
 
-    for step in xrange(FLAGS.max_steps):
+    for step in xrange(global_step, global_step+FLAGS.max_steps):
       start_time = time.time()
       _, loss_value = sess.run([train_op, loss])
       duration = time.time() - start_time
@@ -146,12 +134,12 @@ def train(train_dir, basis):
 
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
-  train(FLAGS.rgb_dir,0)
+  #train(FLAGS.rgb_dir,0)
   train(FLAGS.fft_dir,1)
-  train(FLAGS.hsv_dir,2)
-  train(FLAGS.dct_dir,3)
-  train(FLAGS.right_proj_dir,4)
-  train(FLAGS.left_proj_dir,5)
+  #train(FLAGS.hsv_dir,2)
+  #train(FLAGS.dct_dir,3)
+  #train(FLAGS.right_proj_dir,4)
+  #train(FLAGS.left_proj_dir,5)
 
 
 if __name__ == '__main__':
