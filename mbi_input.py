@@ -125,6 +125,7 @@ basis_dict = {0 : rgb,
               3 : dct,
               4 : right_proj,
               5 : left_proj,
+              6 : fft2,
               }
 
 def read_cifar10(filename_queue):

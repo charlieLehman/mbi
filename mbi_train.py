@@ -28,6 +28,9 @@ import tensorflow as tf
 import mbi
 import mbi_input
 
+import cv2
+import os.path as op
+
 FLAGS = tf.app.flags.FLAGS
 
 tf.app.flags.DEFINE_string('rgb_dir', '/home/charlie/mbi_experiment/rgb_train',
@@ -74,6 +77,14 @@ def train(train_dir, basis):
     # inference model.
     logits = mbi.inference(images)
 
+    # Visualize conv1 features
+    with tf.variable_scope('conv1') as scope_conv:
+      tf.get_variable_scope().reuse_variables()
+      weights = tf.get_variable('weights')
+      grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
+      grid = mbi.put_kernels_on_grid (weights, grid_y, grid_x)
+      tf.summary.image('conv1/features', grid, max_outputs=1)
+
     # Calculate loss.
     loss = mbi.loss(logits, labels)
 
@@ -95,17 +106,19 @@ def train(train_dir, basis):
         log_device_placement=FLAGS.log_device_placement))
     sess.run(init)
 
+
     if tf.gfile.Exists(train_dir):
       tf.train.Saver().restore(sess, ckpt.model_checkpoint_path)
-      global_step = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
+      start_step = int(ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1])
     else:
       tf.gfile.MakeDirs(train_dir)
+      start_step = 0
 
     # Start the queue runners.
     tf.train.start_queue_runners(sess=sess)
     summary_writer = tf.summary.FileWriter(train_dir, sess.graph)
 
-    for step in xrange(global_step, global_step+FLAGS.max_steps):
+    for step in xrange(start_step, start_step+FLAGS.max_steps):
       start_time = time.time()
       _, loss_value = sess.run([train_op, loss])
       duration = time.time() - start_time
@@ -123,6 +136,12 @@ def train(train_dir, basis):
                              examples_per_sec, sec_per_batch))
 
       if step % 100 == 0:
+        img = sess.run(grid)[0]
+        imdir = op.join(train_dir,'conv1')
+        if not tf.gfile.Exists(imdir):
+          tf.gfile.MakeDirs(imdir)
+        imdir = op.join(imdir,'%s_%s_%s' % (mbi_input.basis_dict[basis].__name__,step,'conv1.png'))
+        cv2.imwrite(imdir,img)
         summary_str = sess.run(summary_op)
         summary_writer.add_summary(summary_str, step)
 
@@ -134,10 +153,10 @@ def train(train_dir, basis):
 
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
-  #train(FLAGS.rgb_dir,0)
+  train(FLAGS.rgb_dir,0)
+  train(FLAGS.hsv_dir,2)
+  train(FLAGS.dct_dir,3)
   train(FLAGS.fft_dir,1)
-  #train(FLAGS.hsv_dir,2)
-  #train(FLAGS.dct_dir,3)
   #train(FLAGS.right_proj_dir,4)
   #train(FLAGS.left_proj_dir,5)
 
