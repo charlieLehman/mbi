@@ -338,7 +338,7 @@ def inputs(eval_data, data_dir, batch_size, basis):
   #distorted_image = tf.image.random_flip_left_right(distorted_image)
 
   # Transform the image to desired form.
-  mapped_image = basis_dict[basis](distorted_image)
+  mapped_image = basis_dict[basis](resized_image)
 
   # Subtract off the mean and divide by the variance of the pixels.
   float_image = tf.image.per_image_standardization(mapped_image)

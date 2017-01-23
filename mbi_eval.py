@@ -177,8 +177,8 @@ def main(argv=None):  # pylint: disable=unused-argument
   rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
   fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
-  #dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
-  right_proj_logits, right_proj_labels, rpr_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
+  dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
+  #right_proj_logits, right_proj_labels, rpr_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
   #left_proj_logits, left_proj_labels, lpr_conf = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
 
 
@@ -187,30 +187,28 @@ def main(argv=None):  # pylint: disable=unused-argument
 
   print("====================")
 
+  logits = [rgb_logits, fft_logits, dct_logits, hsv_logits]
 
-  key = ['rgb', 'fft', 'hsv', 'dct', 'rpr', 'lpr']
-  logits = [rgb_logits, fft_logits,hsv_logits, dct_logits, right_proj_logits, left_proj_logits]
+  weights =  [[1,0,0,0],
+             [0,1,0,0],
+             [0,0,1,0],
+             [0,0,0,1],
+             [1,0,1,1],
+             [0,1,1,1],
+             [1,1,1,1]]
 
-  weights =  [[1,0,0,0,0,0],
-              [0,1,0,0,0,0],
-              [0,0,1,0,0,0],
-              [0,0,0,1,0,0],
-              [0,0,0,0,1,0],
-              [0,0,0,0,0,1]]
+  score = fuse(weights, rgb_labels, logits)
+  score_dict = {  '0 RGB' : score[0],
+                  '1 FFT' : score[1],
+                  '2 DCT' : score[2],
+                  '3 HSV' : score[3],
+                  '4 noFFT' : score[4],
+                  '5 noRGB' : score[5],
+                  '6 ALL' : score[6]}
 
-  print(key)
-  print(fuse(weights, rgb_labels, logits))
-
-  weights =  [[1,1,1,1,1,1],
-              [0,1,1,1,1,1],
-              [0,0,1,1,1,1],
-              [0,0,0,1,1,1],
-              [0,0,0,0,1,1]]
-  print(fuse(weights, rgb_labels, logits))
-
+  for basis, score in sorted(score_dict.items()): 
+      print('%s'  ':'  '%.3f' % (basis, score))
   
-  
-
 def fuse(weights, eval_labels,logits):
     performance = np.zeros(np.shape(weights)[0]) 
     for k,n in enumerate(weights):
@@ -224,6 +222,9 @@ def fuse(weights, eval_labels,logits):
         performance_stream = np.equal(guess, eval_labels) + 0
         performance[k] = np.sum(performance_stream/FLAGS.num_examples)
     return performance
+
+def vote(weights, eval_labels,logits):
+    np.sum(np.argmax(logits,axis=3),axis=0)
 
 if __name__ == '__main__':
   tf.app.run()
