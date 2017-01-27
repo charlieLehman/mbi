@@ -79,6 +79,26 @@ tf.app.flags.DEFINE_string('eval_data', 'test',
                            """Either 'test' or 'train_eval'.""")
 tf.app.flags.DEFINE_string('checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
                            """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('rgb2_checkpoint_dir', '/home/charlie/mbi_experiment/rgb2_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('rgb3_checkpoint_dir', '/home/charlie/mbi_experiment/rgb3_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('fft_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('hsv_checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('hsv2_checkpoint_dir', '/home/charlie/mbi_experiment/hsv2_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('dct_checkpoint_dir', '/home/charlie/mbi_experiment/dct_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('dct2_checkpoint_dir', '/home/charlie/mbi_experiment/dct2_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('right_proj_checkpoint_dir', '/home/charlie/mbi_experiment/right_proj_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experiment/left_proj_train',
+                           """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_integer('num_examples', 10000,
                             """Number of examples to run.""")
 tf.app.flags.DEFINE_string('excitation_layer', 'conv2',
@@ -92,7 +112,6 @@ def _prepare_patch (img, response, y, x, dst_height, scale,
   '''
   COLOR = (256,256,256)
   THICKNESS = 2
-  LINE = 8
   
   # resize image
   img = cv2.resize(img, dsize=(0,0), fx=scale, fy=scale,
@@ -103,8 +122,16 @@ def _prepare_patch (img, response, y, x, dst_height, scale,
               org=(0,int(dst_height*0.9)),
               fontFace=cv2.FONT_HERSHEY_DUPLEX, 
               fontScale=dst_height*0.008, 
+              color=(0,0,0),
+              thickness=THICKNESS+2)
+
+  cv2.putText(img, '%0.1f' % response, 
+              org=(0,int(dst_height*0.9)),
+              fontFace=cv2.FONT_HERSHEY_DUPLEX, 
+              fontScale=dst_height*0.008, 
               color=COLOR,
-              thickness=THICKNESS,lineType=LINE)
+              thickness=THICKNESS)
+
 
   # show the receptive field of a channel (if a user cared to pass params)
   if accum_padding is None or half_receptive_field is None or stride is None:
@@ -118,6 +145,9 @@ def _prepare_patch (img, response, y, x, dst_height, scale,
     x_max = int(x_max*scale)
     y_min = int(y_min*scale)
     y_max = int(y_max*scale)
+    cv2.rectangle(img, (x_min,y_min), (x_max,y_max), 
+                  color=(0,0,0), 
+                  thickness=THICKNESS+2)
     cv2.rectangle(img, (x_min,y_min), (x_max,y_max), 
                   color=COLOR, 
                   thickness=THICKNESS)
@@ -408,7 +438,7 @@ def visualize_pooling  (sess, images, layer, neurons,
 
 
 
-def visualize_excitations(basis,layer):
+def visualize_excitations(basis,layer,chkpt_dir):
   ''' Restore a trained model, and run one of the visualizations. '''
   with tf.Graph().as_default():
     # Get images for CIFAR-10.
@@ -434,7 +464,7 @@ def visualize_excitations(basis,layer):
         return
 
       if layer == 'conv2':
-        channels=np.asarray([0,31,63])   # first, 31st, and last channels
+        channels=np.asarray([4,31,63])   # first, 31st, and last channels
         excitation_map = visualize_conv     (sess, images, conv2, channels,
                                              half_receptive_field=5,
                                              accum_padding=0,
@@ -456,11 +486,11 @@ def visualize_excitations(basis,layer):
       else:
         raise Exception ('add your own layers and parameters')
 
-      imdir = op.join(FLAGS.checkpoint_dir,layer)
+      imdir = op.join(chkpt_dir,layer)
       if not tf.gfile.Exists(imdir):
         tf.gfile.MakeDirs(imdir)
       imdir = op.join(imdir,'%s_%s_%s' % (mbi_input.basis_dict[basis].__name__,layer,'.png'))
-      excitation_map = cv2.cvtColor(excitation_map, cv2.COLOR_RGB2BGR)
+      excitation_map = 255*cv2.cvtColor(excitation_map, cv2.COLOR_RGB2BGR)
       cv2.imwrite(imdir,excitation_map)
       print('%s image has been saved in %s' % (layer, imdir))
 
@@ -470,8 +500,11 @@ def main(argv=None):  # pylint: disable=unused-argument
   logging.basicConfig (level=logging.INFO)
 
   mbi.maybe_download_and_extract()
-  visualize_excitations(0,'conv2')
+  visualize_excitations(0,'conv2',FLAGS.rgb_checkpoint_dir)
+  #visualize_excitations(0,'pool2',FLAGS.rgb_checkpoint_dir)
 
+  #visualize_excitations(1,'conv2',FLAGS.fft_checkpoint_dir)
+  #visualize_excitations(1,'pool2',FLAGS.fft_checkpoint_dir)
 
 if __name__ == '__main__':
   tf.app.run()
