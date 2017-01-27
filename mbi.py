@@ -269,7 +269,7 @@ def inference(images):
     softmax_linear = tf.add(tf.matmul(local4, weights), biases, name=scope.name)
     _activation_summary(softmax_linear)
 
-  return softmax_linear, conv2, pool2
+  return softmax_linear, conv2, pool2, pool1
 
 
 def loss(logits, labels):
