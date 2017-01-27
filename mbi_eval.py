@@ -50,11 +50,17 @@ tf.app.flags.DEFINE_string('rgb_eval_dir', '/home/charlie/mbi_experiment/rgb_eva
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('rgb2_eval_dir', '/home/charlie/mbi_experiment/rgb2_eval',
                            """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('rgb3_eval_dir', '/home/charlie/mbi_experiment/rgb3_eval',
+                           """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('fft_eval_dir', '/home/charlie/mbi_experiment/fft_eval',
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('hsv_eval_dir', '/home/charlie/mbi_experiment/hsv_eval',
                            """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('hsv2_eval_dir', '/home/charlie/mbi_experiment/hsv2_eval',
+                           """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('dct_eval_dir', '/home/charlie/mbi_experiment/dct_eval',
+                           """Directory where to write event logs.""")
+tf.app.flags.DEFINE_string('dct2_eval_dir', '/home/charlie/mbi_experiment/dct2_eval',
                            """Directory where to write event logs.""")
 tf.app.flags.DEFINE_string('right_proj_eval_dir', '/home/charlie/mbi_experiment/right_proj_eval',
                            """Directory where to write event logs.""")
@@ -66,11 +72,17 @@ tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/r
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('rgb2_checkpoint_dir', '/home/charlie/mbi_experiment/rgb2_train',
                            """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('rgb3_checkpoint_dir', '/home/charlie/mbi_experiment/rgb3_train',
+                           """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('fft_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('hsv_checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
                            """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('hsv2_checkpoint_dir', '/home/charlie/mbi_experiment/hsv2_train',
+                           """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('dct_checkpoint_dir', '/home/charlie/mbi_experiment/dct_train',
+                           """Directory where to read model checkpoints.""")
+tf.app.flags.DEFINE_string('dct2_checkpoint_dir', '/home/charlie/mbi_experiment/dct2_train',
                            """Directory where to read model checkpoints.""")
 tf.app.flags.DEFINE_string('right_proj_checkpoint_dir', '/home/charlie/mbi_experiment/right_proj_train',
                            """Directory where to read model checkpoints.""")
@@ -180,9 +192,12 @@ def main(argv=None):  # pylint: disable=unused-argument
 
   rgb_logits, rgb_labels, rgb_conf = evaluate(0, FLAGS.rgb_eval_dir, FLAGS.rgb_checkpoint_dir)
   rgb2_logits, rgb2_labels, rgb2_conf = evaluate(0, FLAGS.rgb2_eval_dir, FLAGS.rgb2_checkpoint_dir)
-  fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
+  rgb3_logits, rgb3_labels, rgb3_conf = evaluate(0, FLAGS.rgb3_eval_dir, FLAGS.rgb3_checkpoint_dir)
+  #fft_logits, fft_labels, fft_conf= evaluate(1, FLAGS.fft_eval_dir, FLAGS.fft_checkpoint_dir)
   hsv_logits, hsv_labels, hsv_conf= evaluate(2, FLAGS.hsv_eval_dir, FLAGS.hsv_checkpoint_dir)
   dct_logits, dct_labels, dct_conf = evaluate(3, FLAGS.dct_eval_dir, FLAGS.dct_checkpoint_dir)
+  hsv2_logits, hsv2_labels, hsv2_conf= evaluate(2, FLAGS.hsv2_eval_dir, FLAGS.hsv2_checkpoint_dir)
+  dct2_logits, dct2_labels, dct2_conf = evaluate(3, FLAGS.dct2_eval_dir, FLAGS.dct2_checkpoint_dir)
   #right_proj_logits, right_proj_labels, rpr_conf = evaluate(4, FLAGS.right_proj_eval_dir, FLAGS.right_proj_checkpoint_dir)
   #left_proj_logits, left_proj_labels, lpr_conf = evaluate(5, FLAGS.left_proj_eval_dir, FLAGS.left_proj_checkpoint_dir)
 
@@ -193,14 +208,19 @@ def main(argv=None):  # pylint: disable=unused-argument
   print("====================")
 
   #logits = [rgb_logits, fft_logits, dct_logits, hsv_logits]
-  logits = [rgb_logits, rgb2_logits, hsv_logits, dct_logits, fft_logits]
-  conf = [rgb_conf, rgb2_conf, hsv_conf, dct_conf, fft_conf]
+  logits = [rgb_logits,rgb2_logits, rgb3_logits,hsv_logits, dct_logits, hsv2_logits, dct2_logits]
+  conf = [rgb_conf, rgb2_conf, rgb3_conf,hsv_conf, hsv2_conf,dct_conf, dct2_conf]
   conf_sum = np.sum(conf, axis=0)
 
-  weights =  [[1,1,1,0,0],
-              [1,1,1,0,1],
-              [1,1,1,1,0],
-              [1,1,1,1,1]]
+  weights =  [[1,1,0,0,0,0,0],
+              [1,0,0,0,0,1,0],
+              [0,1,0,0,0,1,0],
+              [0,0,1,0,0,1,0],
+              [1,1,0,0,0,1,0],
+              [0,1,1,0,0,1,0],
+              [1,0,1,0,0,1,0],
+              [1,1,1,0,0,0,0],
+              [1,1,1,0,0,1,0]]
 
   score = fuse(weights, rgb_labels, logits)
 
@@ -208,7 +228,7 @@ def main(argv=None):  # pylint: disable=unused-argument
   for i,n in enumerate(weights):
       score_dict['%i %s' % (i, n)] = score[i]
 
-  print('r r h d f')
+  print('r r r h h d d')
 
   for basis, score in sorted(score_dict.items()): 
       print('%s'  ':'  '%.3f' % (basis, score))

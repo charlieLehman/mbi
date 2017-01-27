@@ -45,6 +45,9 @@ tf.app.flags.DEFINE_string('hsv_dir', '/home/charlie/mbi_experiment/hsv_train',
 tf.app.flags.DEFINE_string('dct_dir', '/home/charlie/mbi_experiment/dct_train',
                            """Directory where to write event logs """
                            """and checkpoint.""")
+tf.app.flags.DEFINE_string('dct2_dir', '/home/charlie/mbi_experiment/dct2_train',
+                           """Directory where to write event logs """
+                           """and checkpoint.""")
 tf.app.flags.DEFINE_string('right_proj_dir', '/home/charlie/mbi_experiment/right_proj_train',
                            """Directory where to write event logs """
                            """and checkpoint.""")
@@ -136,7 +139,8 @@ def train(train_dir, basis):
                              examples_per_sec, sec_per_batch))
 
       if step % 100 == 0:
-        img = sess.run(grid)[0]
+        img = sess.run(grid2)[0]
+        # Save conv1 visualisation
         imdir = op.join(train_dir,'conv1')
         if not tf.gfile.Exists(imdir):
           tf.gfile.MakeDirs(imdir)
@@ -154,9 +158,9 @@ def train(train_dir, basis):
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
   train(FLAGS.rgb_dir,0)
-  train(FLAGS.hsv_dir,2)
-  train(FLAGS.dct_dir,3)
-  train(FLAGS.fft_dir,1)
+  #train(FLAGS.hsv_dir,2)
+  #train(FLAGS.dct_dir,3)
+  #train(FLAGS.fft_dir,1)
   #train(FLAGS.right_proj_dir,4)
   #train(FLAGS.left_proj_dir,5)
 
