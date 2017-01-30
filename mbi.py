@@ -111,33 +111,6 @@ def _variable_on_cpu(name, shape, initializer):
     var = tf.get_variable(name, shape, initializer=initializer, dtype=dtype)
   return var
 
-def _transformed_var_with_weight_decay(name, from_model, to_model, wd):
-  """
-  This will take kernels from another model and tranform them into
-  ours.
-  
-  A weight decay is added only if one is specified.
-
-  Args:
-    name: name of the variable
-    from_model: which model is the kernel sourced from
-    to_model: which model is the kernel transformed into
-    wd: add L2Loss weight decay multiplied by this float. If None, weight
-        decay is not added for this Variable.
-
-  Returns:
-    Variable Tensor
-  """
-
-  dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
-  var = _variable_on_cpu(
-      name,
-      shape,
-      tf.truncated_normal_initializer(stddev=stddev, dtype=dtype))
-  if wd is not None:
-    weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
-    tf.add_to_collection('losses', weight_decay)
-  return var
 
 def _variable_with_weight_decay(name, shape, stddev, wd):
   """Helper to create an initialized Variable with weight decay.

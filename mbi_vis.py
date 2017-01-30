@@ -404,6 +404,7 @@ def put_kernels_on_grid(kernel,grid_Y, grid_X, pad=1):
     x7 = tf.transpose(x6, (3, 0, 1, 2))
 
     return tf.image.convert_image_dtype(x7, dtype = tf.uint8) 
+
 def pool_saturation_map(pool, images, index):
     '''
     Args:

@@ -186,6 +186,22 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
     return eval_once(checkpoint_dir, saver, summary_writer, summary_op,  basis, labels, logits, conf_mat)
 
+def fuse(weights, eval_labels,logits):
+    performance = np.zeros(np.shape(weights)[0]) 
+    for k,n in enumerate(weights):
+        logit_weights = np.array(n)
+        masked_logits = np.zeros(np.shape(logits))
+        for i,m in enumerate(logits):
+            masked_logits[i] = logit_weights[i]*m
+        guess_stream = np.sum(masked_logits, axis=0)
+        guess = np.argmax(guess_stream, axis=2)
+        guess = np.reshape(guess,np.shape(eval_labels))
+        performance_stream = np.equal(guess, eval_labels) + 0
+        performance[k] = np.sum(performance_stream/FLAGS.num_examples)
+    return performance
+
+def vote(weights, eval_labels,logits):
+    np.sum(np.argmax(logits,axis=3),axis=0)
 
 
 def main(argv=None):  # pylint: disable=unused-argument
@@ -231,22 +247,6 @@ def main(argv=None):  # pylint: disable=unused-argument
   for basis, score in sorted(score_dict.items()): 
       print('%s'  ':'  '%.3f' % (basis, score))
   print(conf_sum) 
-def fuse(weights, eval_labels,logits):
-    performance = np.zeros(np.shape(weights)[0]) 
-    for k,n in enumerate(weights):
-        logit_weights = np.array(n)
-        masked_logits = np.zeros(np.shape(logits))
-        for i,m in enumerate(logits):
-            masked_logits[i] = logit_weights[i]*m
-        guess_stream = np.sum(masked_logits, axis=0)
-        guess = np.argmax(guess_stream, axis=2)
-        guess = np.reshape(guess,np.shape(eval_labels))
-        performance_stream = np.equal(guess, eval_labels) + 0
-        performance[k] = np.sum(performance_stream/FLAGS.num_examples)
-    return performance
-
-def vote(weights, eval_labels,logits):
-    np.sum(np.argmax(logits,axis=3),axis=0)
 
 if __name__ == '__main__':
   tf.app.run()
