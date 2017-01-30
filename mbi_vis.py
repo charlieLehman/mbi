@@ -13,49 +13,6 @@
 # limitations under the License.
 # ==============================================================================
 
-'''
-Visualize what pooling and convolutional neurons learned
-  by displaying images that gain highest response.
-
-Motivation:
-
-  It is straightforward to visualize filters in the first convolutional layer, 
-    but not in deeper layers. One way to visualize a neuron is too find images
-    that the neuron fires most one. Inspired by:
-
-  [1]: "Rich feature hierarchies for accurate object detection and semantic 
-       segmentation" by Ross Girshick et al., CVPR, 2014, section 3.1
-
-
-This file has two functions for visualizing high responses:
-  1) visualize_conv - for some channels in a convolutional layer.
-  2) visualize_pooling - for some neurons in a pooling layer
-
-Note that for a convolutional filter, the max response is searched across 
-  both images and x,y coordinates. At the same time, for a pooling neuron,
-  the max response is searched only acrooss images because the coordinates
-  of pooling neurons are fixed (while conv. filter is shared across x,y.)
-
-Implementation issues:
-
-  The search for maximum across images is approximate -- only one best image 
-    from each batch can be included into the result. This is done for simplicity
-    -- please contribute by generalizing to several images per batch.
-
-  I use OpenCV for drawing. If you can change to PIL or whatever, 
-    please propose a patch.
-
-Usage:
-
-  0) Get python bindings to OpenCV
-  1) Examine function 'visualize_excitations'. It has an example of visualizing
-       conv2 and pool2 layers.
-  2) Change function inference() in cifar10.py so that it also returns 
-       conv2 and pool2 tensors. See line 415 of this file.
-  3) Train cifar10 by running cifar10_train.py
-  4) Run this file.
-'''
-
 
 from __future__ import absolute_import
 from __future__ import division
@@ -73,38 +30,8 @@ import os.path as op
 import mbi
 import mbi_input
 
+
 FLAGS = tf.app.flags.FLAGS
-
-tf.app.flags.DEFINE_string('eval_data', 'test',
-                           """Either 'test' or 'train_eval'.""")
-tf.app.flags.DEFINE_string('checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('rgb_checkpoint_dir', '/home/charlie/mbi_experiment/rgb_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('rgb2_checkpoint_dir', '/home/charlie/mbi_experiment/rgb2_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('rgb3_checkpoint_dir', '/home/charlie/mbi_experiment/rgb3_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('fft_checkpoint_dir', '/home/charlie/mbi_experiment/fft_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('hsv_checkpoint_dir', '/home/charlie/mbi_experiment/hsv_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('hsv2_checkpoint_dir', '/home/charlie/mbi_experiment/hsv2_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('dct_checkpoint_dir', '/home/charlie/mbi_experiment/dct_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('dct2_checkpoint_dir', '/home/charlie/mbi_experiment/dct2_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('right_proj_checkpoint_dir', '/home/charlie/mbi_experiment/right_proj_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_string('left_proj_checkpoint_dir', '/home/charlie/mbi_experiment/left_proj_train',
-                           """Directory where to read model checkpoints.""")
-tf.app.flags.DEFINE_integer('num_examples', 10000,
-                            """Number of examples to run.""")
-tf.app.flags.DEFINE_string('excitation_layer', 'conv2',
-                            """Visualize excitations of this layer.""")
-
-
 
 def _prepare_patch (img, response, y, x, dst_height, scale,
                     stride, accum_padding, half_receptive_field):
@@ -191,9 +118,6 @@ def visualize_conv     (sess, images, layer, channels,
     dst_height:      will resize each image to have this height
   Returns:
     excitation_map:   a ready-to-show image, similar to R-CNN paper.
-
-  * Suggestions on how to automatically infer half_receptive_field, accum_padding,
-    and stride are welcome.
   '''
   assert isinstance(channels, np.ndarray), 'channels must be a numpy array'
   assert len(channels.shape) == 1, 'need 1D array [num_filters]'
@@ -434,78 +358,98 @@ def visualize_pooling  (sess, images, layer, neurons,
 
   return excitation_map
 
+def put_kernels_on_grid(kernel,grid_Y, grid_X, pad=1):
+    '''Visualize conv. features as an image (mostly for the 1st layer).
+    Place kernel into a grid, with some paddings between adjacent filters.
 
+    Args:
+      kernel:            tensor of shape [Y, X, NumChannels, NumKernels]
+      (grid_Y, grid_X):  shape of the grid. Require: NumKernels == grid_Y * grid_X
+                           User is responsible of how to break into two multiples.
+      pad:               number of black pixels around each filter (between them)
+    
+    Return:
+      Tensor of shape [(Y+2*pad)*grid_Y, (X+2*pad)*grid_X, NumChannels, 1].
+    '''
 
+    x_min = tf.reduce_min(kernel)
+    x_max = tf.reduce_max(kernel)
 
+    kernel1 = (kernel - x_min) / (x_max - x_min)
 
-def visualize_excitations(basis,layer,chkpt_dir):
-  ''' Restore a trained model, and run one of the visualizations. '''
-  with tf.Graph().as_default():
-    # Get images for CIFAR-10.
-    eval_data = FLAGS.eval_data == 'test'
-    images, _ = mbi.inputs(eval_data=eval_data,basis=basis)
+    # pad X and Y
+    x1 = tf.pad(kernel1, tf.constant( [[pad,pad],[pad, pad],[0,0],[0,0]] ), mode = 'CONSTANT')
 
-    # Get conv2 and pool2 responses
-    _, conv2, pool2 = mbi.inference(images)
+    # X and Y dimensions, w.r.t. padding
+    Y = kernel1.get_shape()[0] + 2 * pad
+    X = kernel1.get_shape()[1] + 2 * pad
 
-    # Restore the moving average version of the learned variables for eval.
-    variable_averages = tf.train.ExponentialMovingAverage(
-        mbi.MOVING_AVERAGE_DECAY)
-    variables_to_restore = variable_averages.variables_to_restore()
-    saver = tf.train.Saver(variables_to_restore)
+    channels = kernel1.get_shape()[2]
 
-    with tf.Session() as sess:
-      ckpt = tf.train.get_checkpoint_state(FLAGS.checkpoint_dir)
-      if ckpt and ckpt.model_checkpoint_path:
-        # Restores from checkpoint
-        saver.restore(sess, ckpt.model_checkpoint_path)
-      else:
-        print('No checkpoint file found')
-        return
+    # put NumKernels to the 1st dimension
+    x2 = tf.transpose(x1, (3, 0, 1, 2))
+    # organize grid on Y axis
+    x3 = tf.reshape(x2, tf.pack([grid_X, Y * grid_Y, X, channels]))
+    
+    # switch X and Y axes
+    x4 = tf.transpose(x3, (0, 2, 1, 3))
+    # organize grid on X axis
+    x5 = tf.reshape(x4, tf.pack([1, X * grid_X, Y * grid_Y, channels]))
+    
+    # back to normal order (not combining with the next step for clarity)
+    x6 = tf.transpose(x5, (2, 1, 3, 0))
 
-      if layer == 'conv2':
-        channels=np.asarray([4,31,63])   # first, 31st, and last channels
-        excitation_map = visualize_conv     (sess, images, conv2, channels,
-                                             half_receptive_field=5,
-                                             accum_padding=0,
-                                             stride=2,
-                                             dst_height=96,
-                                             num_images=FLAGS.num_examples)
+    # to tf.image_summary order [batch_size, height, width, channels],
+    #   where in this case batch_size == 1
+    x7 = tf.transpose(x6, (3, 0, 1, 2))
 
-      elif layer == 'pool2':
-        neurons=np.asarray([[0,0,0],     # top-left corner of first map
-                            [5,5,63],    # bottom-right corner of last map
-                            [3,4,5]])    # in the middle of 5th map
-        excitation_map = visualize_pooling  (sess, images, pool2, neurons,
-                                             half_receptive_field=6,
-                                             accum_padding=0,
-                                             stride=4,
-                                             dst_height=96,
-                                             num_images=FLAGS.num_examples)
+    return tf.image.convert_image_dtype(x7, dtype = tf.uint8) 
+def pool_saturation_map(pool, images, index):
+    '''
+    Args:
+      pool:            tensor for source max pool
+      images:          tensor for source images
+      index:           int for which image to use in batch
+    Returns:
+      saturation_map:  composite image of all max poolings overlayed 
+                       on original image above the same image where 
+                       concentrations of 0 values indicate pooling
+                       saturation
+    '''
+    # Visualize convolution 1 poolng for first image in batch
+    pool1_val = tf.reshape(pool[index],[12,12,64])
+    pool1_1 = tf.image.resize_images(pool1_val,[24,24])
+    pool1_2 = tf.reshape(pool1_1,[24,24,1,64])
+    image_vec = tf.tile(tf.reshape(images[index],[24,24,3,1]),[1,1,1,64])
+    grid_y = grid_x = 8
+    image_grid = put_kernels_on_grid(image_vec, grid_y, grid_x)
+    red_grid = tf.to_float(tf.unpack(image_grid, axis=3),name='ToFloat')/255
+    image_lg = tf.to_float(tf.image.resize_images(images[0],[208,208],method=0))
+    pool1_grid = tf.reshape(tf.to_float(put_kernels_on_grid(pool1_2, grid_y, grid_x),name='ToFloat')/255,[1,208,208])
+    packed_grid = tf.pack([tf.add(.6*red_grid[0],10*pool1_grid),.6*red_grid[1],.6*red_grid[2]],axis=3)
+    highlight_grid = tf.reshape(tf.fake_quant_with_min_max_args(packed_grid,min=0,max=1),[208,208,3])
+    composite_grid = tf.concat(0,[highlight_grid,tf.fake_quant_with_min_max_args(image_lg,min=0,max=1)])
 
-      else:
-        raise Exception ('add your own layers and parameters')
+    return composite_grid
 
-      imdir = op.join(chkpt_dir,layer)
-      if not tf.gfile.Exists(imdir):
-        tf.gfile.MakeDirs(imdir)
-      imdir = op.join(imdir,'%s_%s_%s' % (mbi_input.basis_dict[basis].__name__,layer,'.png'))
-      excitation_map = 255*cv2.cvtColor(excitation_map, cv2.COLOR_RGB2BGR)
-      cv2.imwrite(imdir,excitation_map)
-      print('%s image has been saved in %s' % (layer, imdir))
+def save_vis(train_dir, layer, basis,step, visualization):
+    '''
+    Args:
+      train_dir:         directory to save the visualization 
+      layer:             which layer in the model that is
+                         visualized
+      basis:             which basis is used in the model
+      step:              which step in training
+      visualization:     image to be saved
+    '''
+    imdir = op.join(train_dir,layer)
+    if not tf.gfile.Exists(imdir):
+      tf.gfile.MakeDirs(imdir)
+    imdir = op.join(imdir,'%s_%s_%s%s' % (mbi_input.basis_dict[basis].__name__,step,layer,'.png'))
+    if np.shape(visualization)[2] > 1:
+        visualization = 255*cv2.cvtColor(visualization, cv2.COLOR_RGB2BGR)
+    else:
+        visualization = 255*visualization
 
-
-
-def main(argv=None):  # pylint: disable=unused-argument
-  logging.basicConfig (level=logging.INFO)
-
-  mbi.maybe_download_and_extract()
-  visualize_excitations(0,'conv2',FLAGS.rgb_checkpoint_dir)
-  #visualize_excitations(0,'pool2',FLAGS.rgb_checkpoint_dir)
-
-  #visualize_excitations(1,'conv2',FLAGS.fft_checkpoint_dir)
-  #visualize_excitations(1,'pool2',FLAGS.fft_checkpoint_dir)
-
-if __name__ == '__main__':
-  tf.app.run()
-
+    cv2.imwrite(imdir,visualization)
+    print('%s image has been saved in %s' % (layer, imdir))

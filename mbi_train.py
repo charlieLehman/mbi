@@ -27,7 +27,7 @@ import tensorflow as tf
 
 import mbi
 import mbi_input
-import mbi_vis_excitations
+import mbi_vis
 
 import cv2
 import os.path as op
@@ -86,21 +86,12 @@ def train(train_dir, basis):
       tf.get_variable_scope().reuse_variables()
       weights = tf.get_variable('weights')
       grid_x = grid_y = 8   # to get a square grid for 64 conv1 features
-      conv1_grid = mbi.put_kernels_on_grid (weights, grid_y, grid_x)
+      conv1_grid = mbi_vis.put_kernels_on_grid (weights, grid_y, grid_x)
       tf.summary.image('conv1/features', conv1_grid, max_outputs=1)
 
-    # Visualize convolution 1 poolng for first image in batch
-    pool1_val = tf.reshape(pool1[0],[12,12,64])
-    pool1_1 = tf.image.resize_images(pool1_val,[24,24])
-    pool1_2 = tf.reshape(pool1_1,[24,24,1,64])
-    image_vec = tf.tile(tf.reshape(images[0],[24,24,3,1]),[1,1,1,64])
-    image_grid = mbi.put_kernels_on_grid(image_vec, grid_y, grid_x)
-    red_grid = tf.to_float(tf.unpack(image_grid, axis=3),name='ToFloat')/255
-    image_lg = tf.to_float(tf.image.resize_images(images[0],[208,208],method=0))
-    pool1_grid = tf.reshape(tf.to_float(mbi.put_kernels_on_grid(pool1_2, grid_y, grid_x),name='ToFloat')/255,[1,208,208])
-    packed_grid = tf.pack([tf.add(.6*red_grid[0],10*pool1_grid),.6*red_grid[1],.6*red_grid[2]],axis=3)
-    highlight_grid = tf.reshape(tf.fake_quant_with_min_max_args(packed_grid,min=0,max=1),[208,208,3])
-    composite_grid = tf.concat(0,[highlight_grid,tf.fake_quant_with_min_max_args(image_lg,min=0,max=1)])
+    composite_grid = mbi_vis.pool_saturation_map(pool1, images, 0)
+
+
 
 
     # Calculate loss.
@@ -156,7 +147,7 @@ def train(train_dir, basis):
       if step % 100 == 0:
 
         # Save conv1 visualisation
-        save_vis(train_dir, 'conv1_grid', basis, step, sess.run(conv1_grid)[0])
+        mbi_vis.save_vis(train_dir, 'conv1_grid', basis, step, sess.run(conv1_grid)[0])
 
         summary_str = sess.run(summary_op)
         summary_writer.add_summary(summary_str, step)
@@ -165,11 +156,11 @@ def train(train_dir, basis):
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
 
         # Save first image in batch pool1 visualization with pooling saturation map
-        save_vis(train_dir, 'pool1_grid', basis, step, sess.run(composite_grid))
+        mbi_vis.save_vis(train_dir, 'pool1_grid', basis, step, sess.run(composite_grid))
 
         # Visualize deeper layers
         channels=np.asarray([0,31,63])   # first, 31st, and last channels
-        conv2_map = mbi_vis_excitations.visualize_conv(
+        conv2_map = mbi_vis.visualize_conv(
                                              sess, images, conv2, channels,
                                              half_receptive_field=5,
                                              accum_padding=0,
@@ -181,7 +172,7 @@ def train(train_dir, basis):
                             [5,5,63],    # bottom-right corner of last map
                             [3,4,5]])    # in the middle of 5th map
 
-        pool1_map = mbi_vis_excitations.visualize_pooling(
+        pool1_map = mbi_vis.visualize_pooling(
                                              sess, images, pool1, neurons,
                                              half_receptive_field=6,
                                              accum_padding=0,
@@ -189,7 +180,7 @@ def train(train_dir, basis):
                                              dst_height=96,
                                              num_images=1000)
 
-        pool2_map = mbi_vis_excitations.visualize_pooling(
+        pool2_map = mbi_vis.visualize_pooling(
                                              sess, images, pool2, neurons,
                                              half_receptive_field=6,
                                              accum_padding=0,
@@ -197,26 +188,14 @@ def train(train_dir, basis):
                                              dst_height=96,
                                              num_images=1000)
 
-        save_vis(train_dir, 'pool1_exc', basis, step, pool2_map)
-        save_vis(train_dir, 'conv2_exc', basis, step, conv2_map)
-        save_vis(train_dir, 'pool2_exc', basis, step, pool2_map)
+        mbi_vis.save_vis(train_dir, 'pool1_exc', basis, step, pool2_map)
+        mbi_vis.save_vis(train_dir, 'conv2_exc', basis, step, conv2_map)
+        mbi_vis.save_vis(train_dir, 'pool2_exc', basis, step, pool2_map)
 
         checkpoint_path = os.path.join(train_dir, 'model.ckpt')
         saver.save(sess, checkpoint_path, global_step=step)
 
 
-def save_vis(train_dir, layer, basis,step, ex_map):
-  imdir = op.join(train_dir,layer)
-  if not tf.gfile.Exists(imdir):
-    tf.gfile.MakeDirs(imdir)
-  imdir = op.join(imdir,'%s_%s_%s_%s' % (mbi_input.basis_dict[basis].__name__,step,layer,'.png'))
-  if np.shape(ex_map)[2] > 1:
-      ex_map = 255*cv2.cvtColor(ex_map, cv2.COLOR_RGB2BGR)
-  else:
-      ex_map = 255*ex_map
-
-  cv2.imwrite(imdir,ex_map)
-  print('%s image has been saved in %s' % (layer, imdir))
     
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()

@@ -111,6 +111,33 @@ def _variable_on_cpu(name, shape, initializer):
     var = tf.get_variable(name, shape, initializer=initializer, dtype=dtype)
   return var
 
+def _transformed_var_with_weight_decay(name, from_model, to_model, wd):
+  """
+  This will take kernels from another model and tranform them into
+  ours.
+  
+  A weight decay is added only if one is specified.
+
+  Args:
+    name: name of the variable
+    from_model: which model is the kernel sourced from
+    to_model: which model is the kernel transformed into
+    wd: add L2Loss weight decay multiplied by this float. If None, weight
+        decay is not added for this Variable.
+
+  Returns:
+    Variable Tensor
+  """
+
+  dtype = tf.float16 if FLAGS.use_fp16 else tf.float32
+  var = _variable_on_cpu(
+      name,
+      shape,
+      tf.truncated_normal_initializer(stddev=stddev, dtype=dtype))
+  if wd is not None:
+    weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
+    tf.add_to_collection('losses', weight_decay)
+  return var
 
 def _variable_with_weight_decay(name, shape, stddev, wd):
   """Helper to create an initialized Variable with weight decay.
@@ -398,49 +425,3 @@ def maybe_download_and_extract():
   
   tarfile.open(filepath, 'r:gz').extractall(dest_directory)
 
-def put_kernels_on_grid(kernel,grid_Y, grid_X, pad=1):
-    '''Visualize conv. features as an image (mostly for the 1st layer).
-    Place kernel into a grid, with some paddings between adjacent filters.
-
-    Args:
-      kernel:            tensor of shape [Y, X, NumChannels, NumKernels]
-      (grid_Y, grid_X):  shape of the grid. Require: NumKernels == grid_Y * grid_X
-                           User is responsible of how to break into two multiples.
-      pad:               number of black pixels around each filter (between them)
-    
-    Return:
-      Tensor of shape [(Y+2*pad)*grid_Y, (X+2*pad)*grid_X, NumChannels, 1].
-    '''
-
-    x_min = tf.reduce_min(kernel)
-    x_max = tf.reduce_max(kernel)
-
-    kernel1 = (kernel - x_min) / (x_max - x_min)
-
-    # pad X and Y
-    x1 = tf.pad(kernel1, tf.constant( [[pad,pad],[pad, pad],[0,0],[0,0]] ), mode = 'CONSTANT')
-
-    # X and Y dimensions, w.r.t. padding
-    Y = kernel1.get_shape()[0] + 2 * pad
-    X = kernel1.get_shape()[1] + 2 * pad
-
-    channels = kernel1.get_shape()[2]
-
-    # put NumKernels to the 1st dimension
-    x2 = tf.transpose(x1, (3, 0, 1, 2))
-    # organize grid on Y axis
-    x3 = tf.reshape(x2, tf.pack([grid_X, Y * grid_Y, X, channels]))
-    
-    # switch X and Y axes
-    x4 = tf.transpose(x3, (0, 2, 1, 3))
-    # organize grid on X axis
-    x5 = tf.reshape(x4, tf.pack([1, X * grid_X, Y * grid_Y, channels]))
-    
-    # back to normal order (not combining with the next step for clarity)
-    x6 = tf.transpose(x5, (2, 1, 3, 0))
-
-    # to tf.image_summary order [batch_size, height, width, channels],
-    #   where in this case batch_size == 1
-    x7 = tf.transpose(x6, (3, 0, 1, 2))
-
-    return tf.image.convert_image_dtype(x7, dtype = tf.uint8) 

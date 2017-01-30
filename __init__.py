@@ -19,4 +19,5 @@ from __future__ import division
 from __future__ import print_function
 
 import mbi
+import mbi_vis
 import mbi_input
