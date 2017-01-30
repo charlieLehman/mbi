@@ -94,17 +94,14 @@ def train(train_dir, basis):
     pool1_1 = tf.image.resize_images(pool1_val,[24,24])
     pool1_2 = tf.reshape(pool1_1,[24,24,1,64])
     image_vec = tf.tile(tf.reshape(images[0],[24,24,3,1]),[1,1,1,64])
-    image_lg = tf.to_float(tf.image.resize_images(images[0],[208,208],method=0))
     image_grid = mbi.put_kernels_on_grid(image_vec, grid_y, grid_x)
     red_grid = tf.to_float(tf.unpack(image_grid, axis=3),name='ToFloat')/255
+    image_lg = tf.to_float(tf.image.resize_images(images[0],[208,208],method=0))
     pool1_grid = tf.reshape(tf.to_float(mbi.put_kernels_on_grid(pool1_2, grid_y, grid_x),name='ToFloat')/255,[1,208,208])
     packed_grid = tf.pack([tf.add(.6*red_grid[0],10*pool1_grid),.6*red_grid[1],.6*red_grid[2]],axis=3)
     highlight_grid = tf.reshape(tf.fake_quant_with_min_max_args(packed_grid,min=0,max=1),[208,208,3])
     composite_grid = tf.concat(0,[highlight_grid,tf.fake_quant_with_min_max_args(image_lg,min=0,max=1)])
 
-    
-
-    #tf.summary.image('pool1/features', composite_grid, max_outputs=1)
 
     # Calculate loss.
     loss = mbi.loss(logits, labels)
@@ -157,15 +154,18 @@ def train(train_dir, basis):
                              examples_per_sec, sec_per_batch))
 
       if step % 100 == 0:
+
         # Save conv1 visualisation
         save_vis(train_dir, 'conv1_grid', basis, step, sess.run(conv1_grid)[0])
-        save_vis(train_dir, 'pool1_grid', basis, step, sess.run(composite_grid))
 
         summary_str = sess.run(summary_op)
         summary_writer.add_summary(summary_str, step)
 
       # Save the model checkpoint periodically.
       if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+
+        # Save first image in batch pool1 visualization with pooling saturation map
+        save_vis(train_dir, 'pool1_grid', basis, step, sess.run(composite_grid))
 
         # Visualize deeper layers
         channels=np.asarray([0,31,63])   # first, 31st, and last channels
@@ -180,6 +180,7 @@ def train(train_dir, basis):
         neurons=np.asarray([[0,0,0],     # top-left corner of first map
                             [5,5,63],    # bottom-right corner of last map
                             [3,4,5]])    # in the middle of 5th map
+
         pool1_map = mbi_vis_excitations.visualize_pooling(
                                              sess, images, pool1, neurons,
                                              half_receptive_field=6,
@@ -196,8 +197,8 @@ def train(train_dir, basis):
                                              dst_height=96,
                                              num_images=1000)
 
+        save_vis(train_dir, 'pool1_exc', basis, step, pool2_map)
         save_vis(train_dir, 'conv2_exc', basis, step, conv2_map)
-        save_vis(train_dir, 'pool1_exc', basis, step, pool1_map)
         save_vis(train_dir, 'pool2_exc', basis, step, pool2_map)
 
         checkpoint_path = os.path.join(train_dir, 'model.ckpt')
@@ -220,9 +221,9 @@ def save_vis(train_dir, layer, basis,step, ex_map):
 def main(argv=None):  # pylint: disable=unused-argument
   mbi.maybe_download_and_extract()
   train(FLAGS.rgb_dir,0)
-  #train(FLAGS.hsv_dir,2)
-  #train(FLAGS.dct_dir,3)
-  #train(FLAGS.fft_dir,1)
+  train(FLAGS.fft_dir,1)
+  train(FLAGS.hsv_dir,2)
+  train(FLAGS.dct_dir,3)
   #train(FLAGS.right_proj_dir,4)
   #train(FLAGS.left_proj_dir,5)
 

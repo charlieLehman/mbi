@@ -163,7 +163,8 @@ def evaluate(basis,eval_dir, checkpoint_dir):
 
     # Build a Graph that computes the logits predictions from the
     # inference model.
-    logits = tf.nn.softmax(mbi.inference(images))
+    softmax_linear,_,_,_ = mbi.inference(images)
+    logits = tf.nn.softmax(softmax_linear)
 
     #labels =  tf.Print(labels,[labels],message="Label: ")
     #logits =  tf.Print(logits,[logits],message="Logits: ")
@@ -212,15 +213,12 @@ def main(argv=None):  # pylint: disable=unused-argument
   conf = [rgb_conf, rgb2_conf, rgb3_conf,hsv_conf, hsv2_conf,dct_conf, dct2_conf]
   conf_sum = np.sum(conf, axis=0)
 
-  weights =  [[1,1,0,0,0,0,0],
-              [1,0,0,0,0,1,0],
+  weights =  [[1,0,0,0,0,0,0],
+              [1,1,0,0,0,0,0],
               [0,1,0,0,0,1,0],
-              [0,0,1,0,0,1,0],
               [1,1,0,0,0,1,0],
-              [0,1,1,0,0,1,0],
-              [1,0,1,0,0,1,0],
-              [1,1,1,0,0,0,0],
-              [1,1,1,0,0,1,0]]
+              [0,0,0,0,0,1,0],
+              [1,1,0,0,0,1,1]]
 
   score = fuse(weights, rgb_labels, logits)
 
